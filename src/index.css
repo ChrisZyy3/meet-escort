@@ -1,0 +1,40 @@
+/* 
+ * Global Stylesheet with Tailwind Directives and Font Imports
+ * 
+ * This stylesheet imports the Nunito font from Google Fonts, integrates Tailwind CSS,
+ * and declares custom global adjustments (e.g. scrollbar control, background utilities).
+ */
+
+/* Import Google Fonts - Nunito family */
+/* 导入 Google 字体 - Nunito 字体族 */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+
+/* Tailwind CSS base, components, and utilities styles */
+/* Tailwind CSS 的基础、组件与工具样式 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-nunito text-neutral-medium bg-white antialiased;
+  }
+
+  /* Custom styling for inputs and scroll blocks */
+  /* 输入框与滚动区域的自定义样式 */
+  .noscroll {
+    overflow: hidden;
+  }
+}
+
+@layer utilities {
+  /* Dynamic micro-animations for hover scaling and text coloring */
+  /* 用于悬停放大与文本渐变的微动画实用类 */
+  .hover-scale {
+    @apply transition-transform duration-300 ease-out hover:scale-105;
+  }
+
+  .glow-on-hover {
+    @apply hover:shadow-glow transition-all duration-300;
+  }
+}
