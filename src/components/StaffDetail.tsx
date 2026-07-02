@@ -4,6 +4,9 @@ import type { Staff } from '../types';
 // Import Lock, Unlock, and Phone icons for high-quality Web3 payment visual indicators
 // 导入锁具与电话图标，提供高品质 Web3 支付状态反馈
 import { Lock, Unlock, Phone } from 'lucide-react';
+// Import payment service integration helpers
+// 导入 Web3 支付工具函数进行流程管理与钱包唤起
+import { isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
 
 interface StaffDetailProps {
   staff: Staff | null;
@@ -40,148 +43,100 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   // Wallet selection modal display state
   // 钱包拉起选择框显示状态
   const [showWalletSelector, setShowWalletSelector] = useState<boolean>(false);
-  
-  // Transaction processing loading state
-  // 链上智能合约调用处理中状态
-  const [txLoading, setTxLoading] = useState<boolean>(false);
-  
-  // Transaction failure message state
-  // 链上合约调用失败的错误信息
-  const [txError, setTxError] = useState<string | null>(null);
 
-  // Supported Web3 wallets configuration and deep link builders
-  // 支持的 Web3 钱包配置与 Deep Link 协议构造函数
-  const WALLET_META = {
-    tronlink: {
-      name: 'TronLink',
-      buildDeepLink(url: string) {
-        const param = encodeURIComponent(JSON.stringify({
-          url,
-          action: 'open',
-          protocol: 'TronLink',
-          version: '1.0'
-        }));
-        return `tronlinkoutside://pull.activity?param=${param}`;
-      }
-    },
-    tokenpocket: {
-      name: 'TokenPocket',
-      buildDeepLink(url: string) {
-        return `tpdapp://open?params=${encodeURIComponent(JSON.stringify({ url, chain: 'TRX' }))}`;
-      }
-    },
-    imtoken: {
-      name: 'imToken',
-      buildDeepLink(url: string) {
-        return `imtokenv2://navigate/DappView?url=${encodeURIComponent(url)}`;
-      }
-    },
-    bitkeep: {
-      name: 'BitKeep (Bitget)',
-      buildDeepLink(url: string) {
-        return `bitkeep://bkconnect?action=dapp&url=${encodeURIComponent(url)}`;
-      }
-    }
-  };
+  // Booking form modal display state
+  // 预约上门表单弹窗显示状态
+  const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
 
-  // Helper function to launch the target wallet app and load the current DApp page
-  // 帮助拉起对应的钱包 App 并加载当前落地页链接的辅助函数
+  // Form input fields for booking details, initialize bookingTime to tomorrow (T+1) at 18:00
+  // 预约信息录入表单的各输入字段状态，初始化预约时间为明天 (T+1) 的 18:00
+  const [bookingTime, setBookingTime] = useState<string>(() => {
+    // Generate tomorrow's Date object
+    // 生成明天的日期对象
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Format year, month, and day components to standard YYYY-MM-DD
+    // 格式化年、月、日为标准的 YYYY-MM-DD 格式
+    const year = tomorrow.getFullYear();
+    const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const day = String(tomorrow.getDate()).padStart(2, '0');
+
+    // Combine date components with default time 18:00 for datetime-local value
+    // 拼接成 HTML5 datetime-local 控件要求的 YYYY-MM-DDT18:00 字符串形式
+    return `${year}-${month}-${day}T18:00`;
+  });
+  const [bookingLocation, setBookingLocation] = useState<string>('');
+  const [bookingDuration, setBookingDuration] = useState<string>('1h');
+  const [bookingContact, setBookingContact] = useState<string>('');
+
+  // Flag to indicate if wallet launcher is triggered for booking or phone unlock
+  // 标记当前拉起钱包是进行上门服务预约支付（定金 1 USDT），还是解锁联系方式支付
+  const [isBookingLaunch, setIsBookingLaunch] = useState<boolean>(false);
+
+  // Helper function to launch the target wallet app and load the DApp payment confirmation screen
+  // 帮助拉起对应的钱包 App 并在其内置浏览器加载支付确认界面的辅助函数（支持预定定金模式）
   const handleWalletLaunch = (walletId: 'tronlink' | 'tokenpocket' | 'imtoken' | 'bitkeep') => {
-    // Construct DApp URL including staffId parameter to automatically reopen modal on reload
-    // 构造带有人员 ID 的 URL 链接，以便在钱包内置浏览器打开时能自动弹窗
-    const dappUrl = `${window.location.origin}${window.location.pathname}?staffId=${staff?.id}`;
-    const meta = WALLET_META[walletId];
-    if (meta) {
-      // Redirect window location to the wallet app custom scheme deep link
-      // 将地址重定向至钱包 of 自定义 Scheme 协议链接以拉起 App
-      window.location.href = meta.buildDeepLink(dappUrl);
+    try {
+      let returnUrl = buildPaymentReturnUrl();
+      if (isBookingLaunch) {
+        // Append type=booking query to callback return URL
+        // 往支付成功的回跳 URL 中附带 type=booking 以便页面截获后弹出预约成功信息
+        returnUrl = returnUrl.includes('?') 
+          ? `${returnUrl}&type=booking` 
+          : `${returnUrl}?type=booking`;
+      }
       
-      // Auto-trigger a reminder if redirect does not happen (app not installed / compatible)
-      // 若无法直接跳转（可能未安装客户端），提供操作提示与手动复制选项
-      setTimeout(() => {
-        alert(`Attempting to launch ${meta.name} app. If it did not open, please copy the DApp link at the bottom and paste it manually into the ${meta.name} DApp browser.`);
-      }, 1500);
+      const meta = WALLET_META[walletId] || WALLET_META.tokenpocket;
+      
+      // Construct exact URL to load inside DApp browser
+      // 构造收银台 URL。定金模式下强制传 price=1.00 和 type=booking 参数
+      let targetUrl = `${window.location.origin}${window.location.pathname}?page=payment-confirm&walletId=${walletId}&staffId=${staff?.id}`;
+      if (isBookingLaunch) {
+        targetUrl += `&price=1.00&type=booking`;
+      } else {
+        const price = detailData?.price || staff?.price || 1;
+        targetUrl += `&price=${price}`;
+      }
+      
+      // Append return URL
+      targetUrl = targetUrl.includes('?') 
+        ? `${targetUrl}&returnUrl=${encodeURIComponent(returnUrl)}` 
+        : `${targetUrl}?returnUrl=${encodeURIComponent(returnUrl)}`;
+        
+      window.location.href = meta.buildDeepLink(targetUrl);
+    } catch (err: any) {
+      console.error('Failed to launch wallet app', err);
+      alert(`Failed to open wallet: ${err?.message || String(err)}`);
     }
   };
 
-  // Direct local Tron pay USDT approve transaction call
-  // 本地直接调用波场智能合约，触发 USDT 授权签名
-  const triggerLocalTronPay = async () => {
-    const tronWeb = (window as any).tronWeb;
+  // Direct local Tron pay trigger: redirects to confirmation view if inside wallet browser
+  // 本地波场支付入口：如果在钱包内置浏览器中则直接跳转确认付款，否则展示钱包列表
+  const triggerLocalTronPay = async (isBookingPayment = false) => {
+    setIsBookingLaunch(isBookingPayment);
     
-    // Check if TronWeb is injected in browser environment
-    // 检查当前环境是否处于 Web3 钱包浏览器内
-    if (!tronWeb || !tronWeb.defaultAddress?.base58) {
-      // Fallback: If not in Web3 context, display wallet app selector to redirect
-      // 兜底逻辑：若不在 Web3 浏览器中，打开钱包列表引导弹窗
-      setShowWalletSelector(true);
+    // Check if running inside a Web3 wallet built-in browser environment
+    // 检查当前是否处于注入了波场 Web3 实例的钱包浏览器环境内
+    if (isInjectedWalletBrowser()) {
+      let url = `${window.location.origin}${window.location.pathname}?page=payment-confirm&walletId=tokenpocket&staffId=${staff?.id}`;
+      if (isBookingPayment) {
+        url += `&price=1.00&type=booking`;
+      } else {
+        const price = detailData?.price || staff?.price || 1;
+        url += `&price=${price}`;
+      }
+      window.location.href = url;
       return;
     }
 
-    setTxLoading(true);
-    setTxError(null);
-
-    try {
-      // Spender deposit contract address / 收款合约地址
-      const spender = 'TR1rsFStNdW1QS77DL9gMimHLSRbS1M57z';
-      // TRC20 USDT token contract address / USDT 合约地址
-      const usdtContractAddress = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-      
-      // Resolve companion price, fallback to 1 USDT if undefined
-      // 解析陪侍单价，未设置则默认兜底 1 USDT
-      const price = detailData?.price || staff?.price || 1;
-      // Convert to blockchain token value (USDT has 6 decimals)
-      // 乘以 1e6 换算为链上最小代币精度单位
-      const amount = Math.round(price * 1e6).toString();
-
-      // Retrieve contract instance via contract ABI list
-      // 通过 ABI 接口定义，获取 USDT 代币合约实例
-      const usdtContract = await tronWeb.contract([
-        {
-          inputs: [
-            { name: 'spender', type: 'address' },
-            { name: 'value', type: 'uint256' }
-          ],
-          name: 'approve',
-          outputs: [{ name: '', type: 'bool' }],
-          stateMutability: 'nonpayable',
-          type: 'function'
-        }
-      ], usdtContractAddress);
-
-      // Trigger USDT approve signature and broadcast transaction
-      // 唤起钱包授权支付交易签名并广播
-      const tx = await usdtContract.approve(spender, amount).send({
-        feeLimit: 100000000 // Max fee limit set to 100 TRX / 能量限制
-      });
-
-      if (tx) {
-        // Successfully broadcasted transaction
-        // 交易广播并签名成功
-        localStorage.setItem('meet_escort_paid', 'true');
-        setIsPaid(true);
-        alert('USDT transaction successfully broadcast! Phone number unlocked.');
-      } else {
-        throw new Error('Transaction rejected by user or broadcast failed.');
-      }
-    } catch (err: any) {
-      console.error('Tron Web3 approve call error:', err);
-      const errMsg = err?.message || String(err);
-      
-      // Parse transaction rejection message
-      // 分析错误详情并给出精简信息
-      if (/reject|cancel|declined|user refused/i.test(errMsg)) {
-        setTxError('Transaction signed cancelled by user.');
-      } else {
-        setTxError(`Payment failed: ${errMsg}`);
-      }
-    } finally {
-      setTxLoading(false);
-    }
+    // Display wallet selector launcher popup if in normal system browser
+    // 在普通浏览器中则弹出钱包引导框
+    setShowWalletSelector(true);
   };
 
   // Web3 payment check hook to parse callback returnUrl from payment system
-  // Web3 支付检测 Hook，用于解析支付系统回跳带来的状态参数
+  // Web3 支付检测 Hook，用于解析支付系统回跳带来的状态参数（支持解锁电话与预定定金）
   useEffect(() => {
     const checkPaymentStatus = () => {
       if (typeof window === 'undefined') return;
@@ -195,15 +150,51 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                          window.location.hash.includes('paymentSuccess=1');
       
       if (hasSuccess) {
-        // Record paid status in storage
-        // 将已支付状态存储在本地
-        localStorage.setItem('meet_escort_paid', 'true');
-        setIsPaid(true);
+        const isBookingPay = currentUrl.includes('type=booking') || 
+                             window.location.search.includes('type=booking') || 
+                             window.location.hash.includes('type=booking');
+                             
+        if (isBookingPay) {
+          // Record paid status in storage and state to unlock phone number upon booking deposit success
+          // 预约成功后，同步缓存已支付状态并设置已支付解锁，打通两部分权益
+          localStorage.setItem('meet_escort_paid', 'true');
+          setIsPaid(true);
+
+          // Retrieve cached booking details
+          // 从本地缓存读取录入的预约订单详情
+          const stored = localStorage.getItem('meet_booking_details');
+          if (stored) {
+            try {
+              const details = JSON.parse(stored);
+              alert(
+                `Outcall booking payment verified successfully!\nDirect communication channels are now unlocked.\n\n` +
+                `Staff: ${details.staffName}\n` +
+                `Time: ${details.time}\n` +
+                `Location: ${details.location}\n` +
+                `Duration: ${details.duration}\n` +
+                `Contact: ${details.contact}\n\n` +
+                `The companion will get in touch with you shortly.`
+              );
+            } catch (e) {
+              alert('Outcall booking deposit payment verified successfully! Booking confirmed and phone unlocked.');
+            }
+            localStorage.removeItem('meet_booking_details');
+          } else {
+            alert('Outcall booking deposit payment verified successfully! Booking confirmed and phone unlocked.');
+          }
+        } else {
+          // Record paid status in storage for unlock call
+          // 记录解锁电话已支付状态
+          localStorage.setItem('meet_escort_paid', 'true');
+          setIsPaid(true);
+          alert('USDT payment verification successful! Direct communication channels have been unlocked.');
+        }
         
-        // Dynamically strip paymentSuccess parameter from URL to maintain clean history state
-        // 动态剔除 URL 中的 paymentSuccess 参数，保持干净的历史记录状态
+        // Dynamically strip paymentSuccess and type parameters from URL to maintain clean history state
+        // 动态剔除 URL 中的 paymentSuccess 及 type 参数，保持干净的历史记录状态
         const cleanedUrl = currentUrl
           .replace(/([?&])paymentSuccess=1&?/, '$1')
+          .replace(/([?&])type=booking&?/, '$1')
           .replace(/[?&]$/, '');
         
         window.history.replaceState(null, '', cleanedUrl);
@@ -354,17 +345,17 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                   href={`tel:${detailData.phone}`}
                   onClick={(e) => {
                     if (!isPaid) {
-                      // Intercept dialing to process payment if unpaid
-                      // 若未支付，拦截默认电话拨打行为，触发 Web3 支付流
+                      // Prevent telephone dialing if not paid, and trigger payment flow directly instead of showing booking form
+                      // 若未支付，拦截默认电话拨号，直接触发解锁电话支付流程而非弹出预约框
                       e.preventDefault();
-                      triggerLocalTronPay();
+                      triggerLocalTronPay(false);
                     }
                   }}
                   className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold py-3.5 px-6 rounded-full shadow-lg hover:shadow-primary/30 transition-all duration-200"
                 >
                   {isPaid ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
                   <span>
-                    {txLoading ? 'Authorizing USDT...' : (isPaid ? 'Call Now: ' : 'Unlock Call Now: ') + (() => {
+                    {(isPaid ? 'Call Now: ' : 'Unlock Call Now: ') + (() => {
                       const phone = detailData.phone.trim();
                       if (isPaid) return phone;
                       if (phone.length <= 4) return phone;
@@ -381,32 +372,16 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 </button>
               )}
 
-              {/* WhatsApp or discrete message template helper */}
-              {/* 短信快捷预订（仅在已支付解锁后可用，未支付点击同样提示付款） */}
+              {/* "Meet" Booking button trigger */}
+              {/* “Meet” 上门服务预约录入按钮（采用渐变设计，外观与 Unlock Call 同样显眼） */}
               {detailData?.phone && (
-                <a
-                  href={`sms:${detailData.phone}?body=Hello%20${detailData.name},%20I'm%20interested%20in%20booking%20your%20service.`}
-                  onClick={(e) => {
-                    if (!isPaid) {
-                      e.preventDefault();
-                      // Also trigger payment flow on SMS click if unpaid
-                      // 未支付时点击短信同样触发支付流程
-                      triggerLocalTronPay();
-                    }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 border border-gray-300 dark:border-zinc-700 text-neutral-dark dark:text-white hover:bg-neutral-bgLight dark:hover:bg-zinc-800 font-bold py-3 px-6 rounded-full transition-colors"
+                <button
+                  onClick={() => setShowBookingModal(true)}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-hellobar hover:opacity-90 text-white font-bold py-3.5 px-6 rounded-full shadow-lg shadow-hellobar/20 transition-all duration-200 cursor-pointer border-none"
                 >
                   <Phone className="w-4 h-4" />
-                  <span>Send SMS Message</span>
-                </a>
-              )}
-
-              {/* Display transaction failure error feedback */}
-              {/* 展示交易失败/取消的错误反馈信息 */}
-              {txError && (
-                <div className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-xl p-3 text-center animate-fade-in">
-                  {txError}
-                </div>
+                  <span>Meet</span>
+                </button>
               )}
             </div>
           </div>
@@ -506,6 +481,143 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 Copy DApp URL to Clipboard
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Booking Form Modal Overlay */}
+      {/* 上门预约服务信息录入弹窗 */}
+      {showBookingModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div 
+            className="relative bg-zinc-950 text-white rounded-3xl p-6 md:p-8 w-full max-w-md shadow-2xl border border-zinc-800 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close modal button */}
+            {/* 关闭按钮 */}
+            <button 
+              onClick={() => setShowBookingModal(false)}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white text-2xl font-bold transition-colors cursor-pointer bg-transparent border-none"
+            >
+              &times;
+            </button>
+            
+            <h4 className="text-xl md:text-2xl font-extrabold mb-2 tracking-tight text-white text-center">
+              Book Outcall Service
+            </h4>
+            <p className="text-zinc-400 text-xs md:text-sm mb-6 text-center">
+              Please enter your service details. A deposit of 1.00 USDT is required to confirm booking.
+            </p>
+
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!bookingTime || !bookingLocation || !bookingContact) {
+                  alert('Please fill out all booking details.');
+                  return;
+                }
+                // Save booking details to localStorage
+                localStorage.setItem('meet_booking_details', JSON.stringify({
+                  time: bookingTime,
+                  location: bookingLocation,
+                  duration: bookingDuration,
+                  contact: bookingContact,
+                  staffName: detailData?.name || staff.name
+                }));
+                // Hide booking modal and trigger payment flow for 1.00 USDT deposit
+                setShowBookingModal(false);
+                triggerLocalTronPay(true);
+              }}
+              className="space-y-4 text-left"
+            >
+              {/* Service Time */}
+              {/* 服务时间 */}
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">
+                  {/* Select the appointment date and time */}
+                  {/* 预约具体时间 */}
+                  Date & Time
+                </label>
+                <input 
+                  type="datetime-local" 
+                  required
+                  value={bookingTime}
+                  onChange={(e) => setBookingTime(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+
+              {/* Service Location */}
+              {/* 服务地点 */}
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">
+                  {/* Enter service address/location details */}
+                  {/* 预约服务地点 */}
+                  Service Address
+                </label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="e.g. Hotel name & room number"
+                  value={bookingLocation}
+                  onChange={(e) => setBookingLocation(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+
+              {/* Service Duration */}
+              {/* 服务时长 */}
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">
+                  {/* Select duration of the booking */}
+                  {/* 预约服务时长 */}
+                  Duration
+                </label>
+                <select 
+                  value={bookingDuration}
+                  onChange={(e) => setBookingDuration(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+                >
+                  <option value="1h">1 Hour</option>
+                  <option value="2h">2 Hours</option>
+                  <option value="3h">3 Hours</option>
+                  <option value="overnight">Overnight</option>
+                </select>
+              </div>
+
+              {/* Contact Info */}
+              {/* 联系方式 */}
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">
+                  {/* Enter telegram handle or phone contact details */}
+                  {/* 预约人联系方式 */}
+                  Telegram or Phone
+                </label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="@telegram or phone number"
+                  value={bookingContact}
+                  onChange={(e) => setBookingContact(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+
+              {/* Deposit notice */}
+              {/* 定金提示 */}
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-[10px] text-primary/90 text-center font-bold">
+                Booking Deposit Due: 1.00 USDT
+              </div>
+
+              {/* Submit CTA */}
+              {/* 提交按钮 */}
+              <button
+                type="submit"
+                className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3.5 px-6 rounded-full shadow-lg hover:shadow-primary/20 transition-all duration-300 cursor-pointer text-sm"
+              >
+                Confirm & Pay Deposit
+              </button>
+            </form>
           </div>
         </div>
       )}

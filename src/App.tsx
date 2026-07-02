@@ -18,6 +18,9 @@ import { StaffDetail } from './components/StaffDetail';
 import type { Staff } from './types';
 import { mockStaffList } from './mockData';
 import { fetchStaffList, fetchStaffDetail, API_BASE_URL } from './services/api';
+// Import the new Web3 payment confirmation component
+// 导入新增的 Web3 支付确认页组件
+import { PaymentConfirm } from './components/PaymentConfirm';
 
 /**
  * App Root Component
@@ -36,6 +39,28 @@ export default function App() {
   // Interface loading indicator state
   // 页面骨架屏加载状态
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Simple query-param based routing to toggle between main view and payment confirm view
+  // 基于查询参数的简易路由，决定渲染主应用还是支付确认界面
+  const [currentPage, setCurrentPage] = useState<'main' | 'payment-confirm'>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('page') === 'payment-confirm' ? 'payment-confirm' : 'main';
+    }
+    return 'main';
+  });
+
+  // Watch for history state/popstate events to sync navigation changes
+  // 监听浏览器历史状态变化，同步当前路由页面状态
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      setCurrentPage(urlParams.get('page') === 'payment-confirm' ? 'payment-confirm' : 'main');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
 
   useEffect(() => {
     // Load staff listing from live API on component mount
@@ -90,6 +115,25 @@ export default function App() {
   const handleCloseModal = () => {
     setSelectedStaff(null);
   };
+
+  // If currently routed to the payment confirmation screen, render it full screen
+  // 如果当前路由跳转到了支付确认页面，则全屏渲染该组件并挂载对应的返回回调
+  if (currentPage === 'payment-confirm') {
+    return (
+      <PaymentConfirm 
+        staffList={staffList}
+        onClose={() => {
+          // Clean history parameters and switch back to DApp main homepage
+          // 剔除 URL 中的 page 及 walletId 历史参数，切换回主页面显示
+          const url = new URL(window.location.href);
+          url.searchParams.delete('page');
+          url.searchParams.delete('walletId');
+          window.history.replaceState(null, '', url.toString());
+          setCurrentPage('main');
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-neutral-medium">

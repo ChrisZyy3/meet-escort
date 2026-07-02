@@ -2,8 +2,9 @@ import axios from 'axios';
 import type { Staff } from '../types';
 
 // The BaseURL for the backend services, fallback to direct domain if environment variable is not defined.
-// 接口 BaseURL，默认指向 https://3xrs6.com
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://3xrs6.com';
+// 接口 BaseURL，默认指向 https://wofacai.vip (已从 3xrs6.com 更新为 wofacai.vip)
+// The API client will use this domain to make all Axios HTTP requests.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wofacai.vip';
 
 // Axios Instance creation
 // 创建带有 BaseURL 的 Axios 实例
