@@ -42,18 +42,6 @@ export const Navbar: FC = () => {
               Home
             </a>
             <a 
-              href="#blog" 
-              className="text-neutral-medium hover:text-primary font-semibold text-sm transition-colors duration-200"
-            >
-              Blog
-            </a>
-            <a 
-              href="#premium" 
-              className="text-neutral-medium hover:text-primary font-semibold text-sm transition-colors duration-200"
-            >
-              Premium
-            </a>
-            <a 
               href="#companion" 
               className="text-neutral-medium hover:text-primary font-semibold text-sm transition-colors duration-200"
             >
@@ -113,18 +101,6 @@ export const Navbar: FC = () => {
             className="block px-3 py-2 rounded-md text-base font-semibold text-neutral-dark hover:bg-neutral-bgLight hover:text-primary transition-colors"
           >
             Home
-          </a>
-          <a 
-            href="#blog" 
-            className="block px-3 py-2 rounded-md text-base font-semibold text-neutral-medium hover:bg-neutral-bgLight hover:text-primary transition-colors"
-          >
-            Blog
-          </a>
-          <a 
-            href="#premium" 
-            className="block px-3 py-2 rounded-md text-base font-semibold text-neutral-medium hover:bg-neutral-bgLight hover:text-primary transition-colors"
-          >
-            Premium
           </a>
           <a 
             href="#companion" 

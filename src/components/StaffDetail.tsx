@@ -3,11 +3,12 @@ import type { FC } from 'react';
 import type { Staff } from '../types';
 // Import Lock, Unlock, and Phone icons for high-quality Web3 payment visual indicators
 // 导入锁具与电话图标，提供高品质 Web3 支付状态反馈
-import { Lock, Unlock, Phone } from 'lucide-react';
+import { CalendarDays, Lock, Unlock } from 'lucide-react';
 // Import payment service integration helpers
 // 导入 Web3 支付工具函数进行流程管理与钱包唤起
 import { isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
 import { BookingRequestFlow } from './BookingRequestFlow';
+import { mockStaffSearchMeta } from '../mockData';
 
 interface StaffDetailProps {
   staff: Staff | null;
@@ -259,6 +260,8 @@ export const StaffDetail: FC<StaffDetailProps> = ({
         ? detailData.photoUrl 
         : `${baseUrl}${detailData.photoUrl}`)
     : '';
+  const profileMeta = mockStaffSearchMeta[staff.id];
+  const directContactEnabled = import.meta.env.VITE_ENABLE_DIRECT_CONTACT === 'true';
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -311,7 +314,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 {/* Price Display */}
                 {/* 价格 */}
                 <span className="text-lg md:text-xl font-extrabold text-primary">
-                  {detailData?.price ? `¥${detailData.price.toFixed(2)} / hr` : 'Price on request'}
+                  {detailData?.price ? `$${detailData.price.toFixed(2)} / hr` : 'Price on request'}
                 </span>
               </div>
 
@@ -327,6 +330,15 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 {loading ? 'Loading details...' : (detailData?.description || 'Professional service provider.')}
               </p>
 
+              <div className="mb-6 grid grid-cols-2 gap-3 rounded-2xl bg-neutral-bgLight p-4 text-sm">
+                <ProfileItem label="City" value={profileMeta?.city || 'Available on request'} />
+                <ProfileItem label="Profile" value={profileMeta?.gender || 'Independent'} />
+                <ProfileItem label="Availability" value="Online now" />
+                <ProfileItem label="Services" value={profileMeta?.modes.join(' · ') || 'On request'} />
+                {detailData?.createdAt && <ProfileItem label="Member since" value={new Date(detailData.createdAt).toLocaleDateString()} />}
+                <ProfileItem label="Response time" value="Usually within 30 min" />
+              </div>
+
               {/* Created date & metadata info */}
               {/* 细节元数据 */}
               <div className="text-xs text-neutral-light dark:text-zinc-500 space-y-1 mb-8">
@@ -340,7 +352,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
             {/* Direct Communication Action row */}
             {/* 通讯与预约操作栏 */}
             <div className="space-y-3">
-              {detailData?.phone ? (
+              {detailData?.phone && directContactEnabled ? (
                 /* Primary Call Button with masked/full phone number based on payment status */
                 /* 呼叫热线电话（根据支付状态展示掩码/完整电话，并处理支付跳转） */
                 <a
@@ -365,24 +377,17 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                     })()}
                   </span>
                 </a>
-              ) : (
-                <button
-                  disabled
-                  className="block w-full text-center bg-neutral-light text-white font-bold py-3.5 px-6 rounded-full cursor-not-allowed opacity-50"
-                >
-                  No Contact Provided
-                </button>
-              )}
+              ) : null}
 
               {/* "Meet" Booking button trigger */}
               {/* “Meet” 上门服务预约录入按钮（采用渐变设计，外观与 Unlock Call 同样显眼） */}
-              {detailData?.phone && (
+              {(
                 <button
                   onClick={() => setShowRequestFlow(true)}
                   className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-hellobar hover:opacity-90 text-white font-bold py-3.5 px-6 rounded-full shadow-lg shadow-hellobar/20 transition-all duration-200 cursor-pointer border-none"
                 >
-                  <Phone className="w-4 h-4" />
-                  <span>Meet</span>
+                  <CalendarDays className="w-4 h-4" />
+                  <span>Send booking request</span>
                 </button>
               )}
             </div>
@@ -633,3 +638,10 @@ export const StaffDetail: FC<StaffDetailProps> = ({
     </div>
   );
 };
+
+const ProfileItem: FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="min-w-0">
+    <p className="text-[10px] font-bold uppercase tracking-wide text-neutral-light">{label}</p>
+    <p className="mt-1 truncate font-semibold text-neutral-dark" title={value}>{value}</p>
+  </div>
+);

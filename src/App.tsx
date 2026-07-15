@@ -58,10 +58,17 @@ export default function App() {
     const handlePopState = () => {
       const urlParams = new URLSearchParams(window.location.search);
       setCurrentPage(urlParams.get('page') === 'payment-confirm' ? 'payment-confirm' : 'main');
+      const staffId = parseInt(urlParams.get('staffId') || '', 10);
+      if (Number.isNaN(staffId)) {
+        setSelectedStaff(null);
+        return;
+      }
+      const matched = staffList.find((staff) => staff.id === staffId) || mockStaffList.find((staff) => staff.id === staffId) || null;
+      setSelectedStaff(matched);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [staffList]);
 
 
   useEffect(() => {
@@ -89,7 +96,7 @@ export default function App() {
       const staffIdParam = urlParams.get('staffId');
       if (staffIdParam) {
         const id = parseInt(staffIdParam, 10);
-        const matched = staffList.find((s) => s.id === id);
+        const matched = staffList.find((s) => s.id === id) || mockStaffList.find((s) => s.id === id);
         if (matched) {
           setSelectedStaff(matched);
         }
@@ -100,12 +107,22 @@ export default function App() {
   // Open profile detail modal
   // 点击人员卡片，展开详情对话框
   const handleStaffClick = (staff: Staff) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', 'profile');
+    url.searchParams.set('staffId', String(staff.id));
+    window.history.pushState(null, '', url.toString());
     setSelectedStaff(staff);
   };
 
   // Close profile detail modal
   // 关闭详情对话框
   const handleCloseModal = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('staffId');
+    if (url.searchParams.get('page') === 'profile') {
+      url.searchParams.delete('page');
+    }
+    window.history.replaceState(null, '', url.toString());
     setSelectedStaff(null);
   };
 
