@@ -7,6 +7,7 @@ import { Lock, Unlock, Phone } from 'lucide-react';
 // Import payment service integration helpers
 // 导入 Web3 支付工具函数进行流程管理与钱包唤起
 import { isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
+import { BookingRequestFlow } from './BookingRequestFlow';
 
 interface StaffDetailProps {
   staff: Staff | null;
@@ -47,6 +48,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   // Booking form modal display state
   // 预约上门表单弹窗显示状态
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
+  const [showRequestFlow, setShowRequestFlow] = useState<boolean>(false);
 
   // Form input fields for booking details, initialize bookingTime to tomorrow (T+1) at 18:00
   // 预约信息录入表单的各输入字段状态，初始化预约时间为明天 (T+1) 的 18:00
@@ -376,7 +378,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               {/* “Meet” 上门服务预约录入按钮（采用渐变设计，外观与 Unlock Call 同样显眼） */}
               {detailData?.phone && (
                 <button
-                  onClick={() => setShowBookingModal(true)}
+                  onClick={() => setShowRequestFlow(true)}
                   className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-hellobar hover:opacity-90 text-white font-bold py-3.5 px-6 rounded-full shadow-lg shadow-hellobar/20 transition-all duration-200 cursor-pointer border-none"
                 >
                   <Phone className="w-4 h-4" />
@@ -620,6 +622,13 @@ export const StaffDetail: FC<StaffDetailProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {showRequestFlow && detailData && (
+        <BookingRequestFlow
+          staff={detailData}
+          onClose={() => setShowRequestFlow(false)}
+        />
       )}
     </div>
   );
