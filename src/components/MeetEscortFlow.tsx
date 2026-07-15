@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { FC } from 'react';
 import { ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, MapPin, Search, UserRound, X } from 'lucide-react';
 import type { Staff } from '../types';
+import { mockStaffSearchMeta } from '../mockData';
 import { StaffCard } from './StaffCard';
 
 type Step = 'continent' | 'city' | 'gender' | 'time' | 'duration' | 'results';
@@ -21,17 +22,6 @@ const destinations = [
   { continent: 'North America', cities: ['New York', 'Los Angeles', 'Miami', 'Toronto'] },
   { continent: 'Middle East', cities: ['Dubai', 'Doha', 'Abu Dhabi', 'Istanbul'] }
 ];
-
-const profileMeta: Record<number, { city: string; gender: Gender; modes: ServiceMode[] }> = {
-  1: { city: 'Bangkok', gender: 'Female', modes: ['On-call', 'In-call'] },
-  2: { city: 'London', gender: 'Female', modes: ['On-call'] },
-  3: { city: 'Tokyo', gender: 'Female', modes: ['On-call', 'In-call'] },
-  4: { city: 'Dubai', gender: 'Female', modes: ['In-call'] },
-  5: { city: 'Manila', gender: 'Female', modes: ['On-call', 'In-call'] },
-  6: { city: 'Paris', gender: 'Female', modes: ['On-call'] },
-  7: { city: 'Tokyo', gender: 'Male', modes: ['On-call', 'In-call'] },
-  8: { city: 'Singapore', gender: 'Female', modes: ['In-call'] }
-};
 
 const formatDateForInput = (date: Date) => {
   const year = date.getFullYear();
@@ -56,8 +46,8 @@ export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({ staffList, baseUrl = '
 
   const results = useMemo(() => {
     return staffList.filter((staff) => {
-      const meta = profileMeta[staff.id];
-      if (!meta) return true;
+      const meta = mockStaffSearchMeta[staff.id];
+      if (!meta) return false;
       return meta.city === city && meta.gender === gender && meta.modes.includes(serviceMode as ServiceMode);
     });
   }, [city, gender, serviceMode, staffList]);

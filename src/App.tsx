@@ -199,7 +199,7 @@ export default function App() {
 
       {isMeetFlowOpen && (
         <MeetEscortFlow
-          staffList={staffList.length ? staffList : mockStaffList}
+          staffList={mockStaffList}
           baseUrl={API_BASE_URL}
           onClose={() => setIsMeetFlowOpen(false)}
           onStaffClick={(staff) => {
