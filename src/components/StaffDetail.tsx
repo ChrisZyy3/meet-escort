@@ -3,7 +3,7 @@ import type { FC } from 'react';
 import type { Staff } from '../types';
 // Import Lock, Unlock, and Phone icons for high-quality Web3 payment visual indicators
 // 导入锁具与电话图标，提供高品质 Web3 支付状态反馈
-import { CalendarDays, Lock, Unlock } from 'lucide-react';
+import { CalendarDays, Heart, Languages, Lock, Ruler, Share2, Star, Unlock } from 'lucide-react';
 // Import payment service integration helpers
 // 导入 Web3 支付工具函数进行流程管理与钱包唤起
 import { isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
@@ -16,6 +16,18 @@ interface StaffDetailProps {
   baseUrl?: string;
   fetchDetailApi?: (id: number) => Promise<Staff>; // Phase 2: Async details fetcher
 }
+
+const galleryPool = [
+  '/home_files/andreana-17822594432826.jpg',
+  '/home_files/bailey-17821383254401.jpg',
+  '/home_files/mae-17821925043330.jpg',
+  '/home_files/nina-15812396855097.jpg',
+  '/home_files/rose-in-thailand-16503764477841.jpg',
+  '/home_files/rio-nanase-17229186235364.jpg'
+];
+
+const bodyTypes = ['Petite', 'Slim', 'Athletic', 'Curvy'];
+const languageSets = ['English · Thai', 'English · Japanese', 'English · French', 'English · Spanish'];
 
 /**
  * StaffDetail Component
@@ -50,6 +62,8 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   // 预约上门表单弹窗显示状态
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
   const [showRequestFlow, setShowRequestFlow] = useState<boolean>(false);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [isFavorite, setIsFavorite] = useState(false);
 
   // Form input fields for booking details, initialize bookingTime to tomorrow (T+1) at 18:00
   // 预约信息录入表单的各输入字段状态，初始化预约时间为明天 (T+1) 的 18:00
@@ -220,6 +234,8 @@ export const StaffDetail: FC<StaffDetailProps> = ({
     // 当选择的服务人员改变时，重置状态
     setDetailData(staff);
     setError(null);
+    setActivePhotoIndex(0);
+    setIsFavorite(false);
 
     if (staff && fetchDetailApi) {
       // Async detail fetch for Phase 2 API integration
@@ -255,13 +271,32 @@ export const StaffDetail: FC<StaffDetailProps> = ({
 
   // Resolve photo URL absolute path
   // 解析绝对图片地址
-  const resolvedPhoto = detailData?.photoUrl
-    ? (detailData.photoUrl.startsWith('http') || detailData.photoUrl.startsWith('/home_files')
-        ? detailData.photoUrl 
-        : `${baseUrl}${detailData.photoUrl}`)
+  const galleryPhotos = [detailData?.photoUrl || staff.photoUrl, ...galleryPool.slice(staff.id % galleryPool.length), ...galleryPool.slice(0, staff.id % galleryPool.length)]
+    .filter((photo, index, all): photo is string => Boolean(photo) && all.indexOf(photo) === index)
+    .slice(0, 4);
+  const activePhoto = galleryPhotos[activePhotoIndex] || detailData?.photoUrl || staff.photoUrl;
+  const resolvedPhoto = activePhoto
+    ? (activePhoto.startsWith('http') || activePhoto.startsWith('/home_files')
+        ? activePhoto
+        : `${baseUrl}${activePhoto}`)
     : '';
   const profileMeta = mockStaffSearchMeta[staff.id];
   const directContactEnabled = import.meta.env.VITE_ENABLE_DIRECT_CONTACT === 'true';
+  const rating = (4.6 + (staff.id % 5) / 10).toFixed(1);
+  const reviewCount = 12 + staff.id * 3;
+  const height = 158 + (staff.id % 15);
+  const bodyType = bodyTypes[staff.id % bodyTypes.length];
+  const languages = languageSets[staff.id % languageSets.length];
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('Profile link copied to clipboard.');
+    } catch {
+      alert(`Profile link: ${url}`);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -289,12 +324,36 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               <img 
                 src={resolvedPhoto} 
                 alt={`${staff.name} profile`} 
-                className="w-full h-full object-cover" 
+                className="w-full h-full object-cover transition-opacity duration-300"
               />
             ) : (
               <div className="w-full h-full flex flex-col justify-center items-center bg-primary/5 text-primary text-4xl font-extrabold">
                 {staff.name.charAt(0).toUpperCase()}
                 <span className="text-sm font-semibold text-neutral-light mt-2">No Photo</span>
+              </div>
+            )}
+            <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
+              <button
+                onClick={() => setIsFavorite((value) => !value)}
+                aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition ${isFavorite ? 'bg-primary text-white' : 'bg-white/85 text-neutral-dark hover:bg-white'}`}
+              >
+                <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+              </button>
+              <button onClick={handleShare} aria-label="Share profile" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-neutral-dark backdrop-blur transition hover:bg-white">
+                <Share2 className="h-5 w-5" />
+              </button>
+            </div>
+            {galleryPhotos.length > 1 && (
+              <div className="absolute bottom-4 left-4 right-4 flex gap-2 overflow-x-auto pb-1">
+                {galleryPhotos.map((photo, index) => {
+                  const thumbnail = photo.startsWith('http') || photo.startsWith('/home_files') ? photo : `${baseUrl}${photo}`;
+                  return (
+                    <button key={photo} onClick={() => setActivePhotoIndex(index)} className={`h-14 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${activePhotoIndex === index ? 'border-primary' : 'border-white/80 opacity-75 hover:opacity-100'}`}>
+                      <img src={thumbnail} alt={`${staff.name} gallery ${index + 1}`} className="h-full w-full object-cover" />
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -337,6 +396,12 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <ProfileItem label="Services" value={profileMeta?.modes.join(' · ') || 'On request'} />
                 {detailData?.createdAt && <ProfileItem label="Member since" value={new Date(detailData.createdAt).toLocaleDateString()} />}
                 <ProfileItem label="Response time" value="Usually within 30 min" />
+              </div>
+
+              <div className="mb-6 grid grid-cols-3 gap-3">
+                <div className="rounded-xl border border-gray-100 p-3 text-center"><Star className="mx-auto h-4 w-4 fill-yellow-400 text-yellow-400" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{rating}</p><p className="text-[10px] text-neutral-light">{reviewCount} reviews</p></div>
+                <div className="rounded-xl border border-gray-100 p-3 text-center"><Ruler className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{height} cm</p><p className="text-[10px] text-neutral-light">{bodyType}</p></div>
+                <div className="rounded-xl border border-gray-100 p-3 text-center"><Languages className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-xs font-extrabold text-neutral-dark">{languages}</p><p className="mt-1 text-[10px] text-neutral-light">Languages</p></div>
               </div>
 
               {/* Created date & metadata info */}
