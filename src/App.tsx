@@ -12,6 +12,7 @@ import { RegisteredGrid } from './components/RegisteredGrid';
 import { WhySmooci } from './components/WhySmooci';
 import { Footer } from './components/Footer';
 import { StaffDetail } from './components/StaffDetail';
+import { MeetEscortFlow } from './components/MeetEscortFlow';
 
 // Import Types, mock fallback list, and API service functions
 // 引入类型声明、本地备用数据与 API 请求函数
@@ -39,6 +40,7 @@ export default function App() {
   // Interface loading indicator state
   // 页面骨架屏加载状态
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isMeetFlowOpen, setIsMeetFlowOpen] = useState<boolean>(false);
 
   // Simple query-param based routing to toggle between main view and payment confirm view
   // 基于查询参数的简易路由，决定渲染主应用还是支付确认界面
@@ -95,15 +97,6 @@ export default function App() {
     }
   }, [staffList]);
 
-  // Smooth scroll to staff grid directory anchor
-  // 平滑滚动至在线列表网格
-  const scrollToDirectory = () => {
-    const section = document.getElementById('directory');
-    if (section) {
-      section.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   // Open profile detail modal
   // 点击人员卡片，展开详情对话框
   const handleStaffClick = (staff: Staff) => {
@@ -149,7 +142,7 @@ export default function App() {
       {/* 巨幕展示区（气泡头像使用拉取的前 8 位人员数据） */}
       <Hero 
         staffList={staffList} 
-        onSearchClick={scrollToDirectory} 
+        onMeetClick={() => setIsMeetFlowOpen(true)}
         onStaffClick={handleStaffClick} 
         baseUrl={API_BASE_URL} // Prepend API base domain to staff bubble images / 为头像气泡图片传入 API 域名
       />
@@ -181,7 +174,7 @@ export default function App() {
 
       {/* 7.3. Total Registered Escorts Thumbnail Grid */}
       {/* 注册人员大网格缩略图列表 */}
-      <RegisteredGrid onSearchClick={scrollToDirectory} />
+      <RegisteredGrid onSearchClick={() => setIsMeetFlowOpen(true)} />
 
       {/* 7.7. Safety, Trust, Privacy & Support Section */}
       {/* 四大安全信任保障板块 */}
@@ -203,6 +196,18 @@ export default function App() {
         baseUrl={API_BASE_URL}
         fetchDetailApi={fetchStaffDetail}
       />
+
+      {isMeetFlowOpen && (
+        <MeetEscortFlow
+          staffList={staffList.length ? staffList : mockStaffList}
+          baseUrl={API_BASE_URL}
+          onClose={() => setIsMeetFlowOpen(false)}
+          onStaffClick={(staff) => {
+            setIsMeetFlowOpen(false);
+            handleStaffClick(staff);
+          }}
+        />
+      )}
     </div>
   );
 }

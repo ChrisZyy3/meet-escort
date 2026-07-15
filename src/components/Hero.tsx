@@ -3,7 +3,7 @@ import type { Staff } from '../types';
 
 interface HeroProps {
   staffList: Staff[];
-  onSearchClick: () => void;
+  onMeetClick: () => void;
   onStaffClick: (staff: Staff) => void;
   baseUrl?: string; // Prepend base URL for images in Phase 2 / 在第二阶段为图片路径拼接域名
 }
@@ -14,7 +14,7 @@ interface HeroProps {
  * Main call-to-action panel. Shows headline, navigation shortcuts,
  * dynamic bubble grid of online companion pictures, and Cloudflare WARP guide.
  */
-export const Hero: FC<HeroProps> = ({ staffList, onSearchClick, onStaffClick, baseUrl = '' }) => {
+export const Hero: FC<HeroProps> = ({ staffList, onMeetClick, onStaffClick, baseUrl = '' }) => {
   return (
     <section className="bg-white py-12 md:py-20 text-center transition-all duration-300">
       <div className="max-w-4xl mx-auto px-4">
@@ -22,7 +22,7 @@ export const Hero: FC<HeroProps> = ({ staffList, onSearchClick, onStaffClick, ba
         {/* 核心动作按钮 */}
         <div className="mb-10">
           <button 
-            onClick={onSearchClick}
+            onClick={onMeetClick}
             className="bg-primary hover:bg-primary-hover text-white text-lg md:text-xl font-bold py-4 px-10 rounded-full shadow-lg hover:shadow-primary/30 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
           >
             Meet an escort
