@@ -8,13 +8,13 @@ import type { FC } from 'react';
  */
 export const HelloBar: FC = () => {
   return (
-    <div className="bg-hellobar text-white text-center py-3 px-6 text-sm md:text-base font-semibold shadow-sm leading-tight transition-all duration-300">
+    <div className="hello-bar">
       {/* Announcement text for open locations */}
       {/* 打开城市列表通告 */}
       <span>
-        Now open in <strong className="underline">PATTAYA</strong> - <strong className="underline">PHUKET</strong> - <strong className="underline">DUBAI</strong> - <strong className="underline">ABU DHABI</strong>.
+        Now open in <strong>BANGKOK</strong> · <strong>TOKYO</strong> · <strong>DUBAI</strong> · <strong>MANILA</strong>.
       </span>
-      <br className="md:hidden" />
+      <br className="sm:hidden" />
       {/* Contact Link */}
       {/* 联系邮箱 */}
       <span className="md:ml-2">

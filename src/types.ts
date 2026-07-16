@@ -6,12 +6,37 @@
  */
 
 export interface Staff {
-  id: number;             // Unique identifier / 唯一识别ID
-  name: string;           // Name / 姓名
-  description: string;    // Description / 简介
-  phone: string;          // Phone number / 电话
-  price: number;          // Price in local currency / 价格（元）
-  photoUrl: string;       // Image URL (relative path) / 照片相对路径
-  isActive: boolean;      // Listing status / 上架状态
-  createdAt?: string;     // Creation date string / 创建时间
+  id: number;
+  name: string;
+  description: string;
+  phone: string;
+  price: number;
+  photoUrl: string;
+  isActive: boolean;
+  createdAt?: string;
+  location?: string;
+  age?: number;
+  rating?: number;
+  reviewCount?: number;
+  languages?: string[];
+  verified?: boolean;
+  responseMinutes?: number;
+}
+
+export interface SearchCriteria {
+  city: string;
+  date: string;
+  time: string;
+  duration: string;
+  availableNow: boolean;
+}
+
+export interface BookingDraft {
+  staffId: number;
+  staffName: string;
+  date: string;
+  time: string;
+  duration: string;
+  location: string;
+  contact: string;
 }

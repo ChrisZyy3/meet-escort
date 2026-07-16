@@ -23,6 +23,11 @@ import { fetchStaffList, fetchStaffDetail, API_BASE_URL } from './services/api';
 // 导入新增的 Web3 支付确认页组件
 import { PaymentConfirm } from './components/PaymentConfirm';
 
+const mergeStaffData = (items: Staff[]) => items.map((item) => {
+  const fallback = mockStaffList.find((staff) => staff.id === item.id);
+  return fallback ? { ...fallback, ...item, location: item.location ?? fallback.location, languages: item.languages ?? fallback.languages } : item;
+});
+
 /**
  * App Root Component
  * 
@@ -31,7 +36,7 @@ import { PaymentConfirm } from './components/PaymentConfirm';
 export default function App() {
   // Service personnel listing data state
   // 服务人员列表数据状态
-  const [staffList, setStaffList] = useState<Staff[]>([]);
+  const [staffList, setStaffList] = useState<Staff[]>(mockStaffList);
   
   // Dialog selection tracking state
   // 选中的人员详情弹窗状态
@@ -76,7 +81,7 @@ export default function App() {
     // 组件挂载时自动请求后端接口，拉取人员列表
     fetchStaffList()
       .then((data) => {
-        setStaffList(data);
+        if (data.length) setStaffList(mergeStaffData(data));
         setIsLoading(false);
       })
       .catch((error) => {

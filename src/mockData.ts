@@ -67,7 +67,7 @@ export const mockStaffSearchMeta: Record<number, MockStaffSearchMeta> = mockProf
   return result;
 }, {} as Record<number, MockStaffSearchMeta>);
 
-export const mockStaffList: Staff[] = mockProfiles.map((profile) => ({
+export const mockStaffList: Staff[] = mockProfiles.map((profile, index) => ({
   id: profile.id,
   name: profile.name,
   description: `Available in ${profile.city} for discreet, premium companionship.`,
@@ -75,7 +75,14 @@ export const mockStaffList: Staff[] = mockProfiles.map((profile) => ({
   price: profile.price,
   photoUrl: profile.photoUrl,
   isActive: true,
-  createdAt: `2026-06-${String((profile.id % 28) + 1).padStart(2, '0')}T12:00`
+  createdAt: `2026-06-${String((profile.id % 28) + 1).padStart(2, '0')}T12:00`,
+  location: profile.city,
+  age: 23 + (profile.id % 8),
+  rating: Number((4.6 + (profile.id % 5) / 10).toFixed(1)),
+  reviewCount: 12 + profile.id * 3,
+  languages: profile.gender === 'Male' ? ['English', 'Thai'] : ['English', 'Thai'],
+  verified: index % 5 !== 0,
+  responseMinutes: 3 + (profile.id % 6),
 }));
 
 /**

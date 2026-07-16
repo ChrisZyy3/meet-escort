@@ -192,7 +192,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 `Contact: ${details.contact}\n\n` +
                 `The companion will get in touch with you shortly.`
               );
-            } catch (e) {
+            } catch {
               alert('Outcall booking deposit payment verified successfully! Booking confirmed and phone unlocked.');
             }
             localStorage.removeItem('meet_booking_details');
