@@ -1,22 +1,26 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FC } from 'react';
-import { ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, MapPin, Search, UserRound, X } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Heart, MapPin, Search, SlidersHorizontal, UserRound, Video, X } from 'lucide-react';
 import type { Staff } from '../types';
 import { mockStaffSearchMeta } from '../mockData';
+import { fetchCities } from '../services/api';
 import { StaffCard } from './StaffCard';
 
 type Step = 'continent' | 'city' | 'gender' | 'time' | 'duration' | 'results';
 type Gender = 'Female' | 'Male';
 type ServiceMode = 'On-call' | 'In-call';
+type ResultTab = 'online' | 'favorites' | 'videos';
 
 interface MeetEscortFlowProps {
   staffList: Staff[];
   baseUrl?: string;
   onClose: () => void;
   onStaffClick: (staff: Staff) => void;
+  favoriteIds: Set<number>;
+  onToggleFavorite: (id: number) => void;
 }
 
-const destinations = [
+const fallbackDestinations = [
   { continent: 'Asia', cities: ['Bangkok', 'Tokyo', 'Manila', 'Singapore'] },
   { continent: 'Europe', cities: ['London', 'Paris', 'Barcelona', 'Berlin'] },
   { continent: 'North America', cities: ['New York', 'Los Angeles', 'Miami', 'Toronto'] },
@@ -30,7 +34,7 @@ const formatDateForInput = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({ staffList, baseUrl = '', onClose, onStaffClick }) => {
+export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({ staffList, baseUrl = '', onClose, onStaffClick, favoriteIds, onToggleFavorite }) => {
   const [step, setStep] = useState<Step>('continent');
   const [continent, setContinent] = useState('');
   const [city, setCity] = useState('');
@@ -39,6 +43,28 @@ export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({ staffList, baseUrl = '
   const [date, setDate] = useState(() => formatDateForInput(new Date()));
   const [time, setTime] = useState('20:00');
   const [duration, setDuration] = useState('2 hours');
+  const [resultTab, setResultTab] = useState<ResultTab>('online');
+  const [sortBy, setSortBy] = useState<'default' | 'price-low' | 'price-high'>('default');
+  const [destinations, setDestinations] = useState(fallbackDestinations);
+
+  useEffect(() => {
+    let active = true;
+    fetchCities().then((cities) => {
+      const grouped = new Map<string, Set<string>>();
+      cities.forEach(({ continent, country, city: cityName }) => {
+        const region = continent.trim() || country.trim() || 'Other';
+        const city = cityName.trim();
+        if (!city) return;
+        if (!grouped.has(region)) grouped.set(region, new Set());
+        grouped.get(region)?.add(city);
+      });
+      const apiDestinations = Array.from(grouped, ([continent, cities]) => ({ continent, cities: Array.from(cities).sort() }));
+      if (active && apiDestinations.length) setDestinations(apiDestinations);
+    }).catch(() => {
+      // Keep the local destinations available when the public API is unavailable.
+    });
+    return () => { active = false; };
+  }, []);
 
   const selectedCities = destinations.find((item) => item.continent === continent)?.cities ?? [];
   const currentStepIndex = ['continent', 'city', 'gender', 'time', 'duration'].indexOf(step);
@@ -47,10 +73,25 @@ export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({ staffList, baseUrl = '
   const results = useMemo(() => {
     return staffList.filter((staff) => {
       const meta = mockStaffSearchMeta[staff.id];
-      if (!meta) return false;
-      return meta.city === city && meta.gender === gender && meta.modes.includes(serviceMode as ServiceMode);
+      const cityMatches = staff.city ? staff.city === city : meta?.city === city;
+      // The public API currently does not provide gender or service-mode fields.
+      // Apply those filters only to local mock profiles that contain that metadata.
+      const genderMatches = Boolean(staff.city) || !meta || meta.gender === gender;
+      const modeMatches = Boolean(staff.city) || !meta || meta.modes.includes(serviceMode as ServiceMode);
+      return cityMatches && genderMatches && modeMatches;
     });
   }, [city, gender, serviceMode, staffList]);
+
+  const visibleResults = useMemo(() => {
+    const filtered = results.filter((staff) => {
+      if (resultTab === 'favorites') return favoriteIds.has(staff.id);
+      if (resultTab === 'videos') return staff.id % 3 === 0;
+      return staff.isActive;
+    });
+    if (sortBy === 'price-low') return [...filtered].sort((a, b) => a.price - b.price);
+    if (sortBy === 'price-high') return [...filtered].sort((a, b) => b.price - a.price);
+    return filtered;
+  }, [favoriteIds, resultTab, results, sortBy]);
 
   const selectContinent = (value: string) => {
     setContinent(value);
@@ -129,7 +170,7 @@ export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({ staffList, baseUrl = '
 
       <main className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
         {step === 'continent' && (
-          <StepPanel icon={<MapPin />} eyebrow="Step 1 of 5" title="Where would you like to meet?" description="Choose a region to see cities with mock availability.">
+          <StepPanel icon={<MapPin />} eyebrow="Step 1 of 5" title="Where would you like to meet?" description="Choose a region to see cities with availability.">
             <div className="grid gap-3 sm:grid-cols-2">
               {destinations.map((item) => <OptionButton key={item.continent} title={item.continent} subtitle={`${item.cities.length} cities`} onClick={() => selectContinent(item.continent)} />)}
             </div>
@@ -178,22 +219,38 @@ export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({ staffList, baseUrl = '
           <section>
             <div className="mb-8 flex flex-col justify-between gap-5 rounded-3xl bg-white p-6 shadow-sm md:flex-row md:items-center">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-primary">Mock search results</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-primary">Search results</p>
                 <h1 className="mt-1 text-3xl font-extrabold text-neutral-dark">Available in {city}</h1>
-                <p className="mt-2 text-sm text-neutral-light">{results.length} profile{results.length === 1 ? '' : 's'} matching your current preferences.</p>
+                <p className="mt-2 text-sm text-neutral-light">{visibleResults.length} profile{visibleResults.length === 1 ? '' : 's'} matching your current view.</p>
               </div>
               <button onClick={startAgain} className="rounded-full border border-primary px-5 py-2.5 text-sm font-bold text-primary transition hover:bg-primary hover:text-white">Edit search</button>
             </div>
             <div className="mb-7 flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-medium">
               {[city, gender, serviceMode, `${date} · ${time}`, duration].map((item) => <span key={item} className="rounded-full bg-white px-4 py-2 shadow-sm">{item}</span>)}
             </div>
-            {results.length ? (
+            <div className="mb-6 flex flex-col justify-between gap-4 border-b border-gray-200 pb-3 sm:flex-row sm:items-center">
+              <div className="flex gap-5 text-sm font-bold">
+                {([
+                  ['online', 'Online', null],
+                  ['favorites', 'Favorites', Heart],
+                  ['videos', 'Videos', Video]
+                ] as const).map(([tab, label, Icon]) => (
+                  <button key={tab} onClick={() => setResultTab(tab)} className={`flex items-center gap-1 border-b-2 pb-3 transition ${resultTab === tab ? 'border-primary text-primary' : 'border-transparent text-neutral-light hover:text-neutral-dark'}`}>
+                    {Icon && <Icon className="h-4 w-4" />} {label}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-sm font-bold text-neutral-medium"><SlidersHorizontal className="h-4 w-4 text-primary" /> Sort<select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-primary"><option value="default">Default</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option></select></label>
+            </div>
+            {visibleResults.length ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 md:gap-6">
-                {results.map((staff) => <StaffCard key={staff.id} staff={staff} baseUrl={baseUrl} onClick={() => onStaffClick(staff)} />)}
+                {visibleResults.map((staff) => (
+                  <StaffCard key={staff.id} staff={staff} baseUrl={baseUrl} onClick={() => onStaffClick(staff)} isFavorite={favoriteIds.has(staff.id)} onToggleFavorite={() => onToggleFavorite(staff.id)} />
+                ))}
               </div>
             ) : (
               <div className="rounded-3xl bg-white px-6 py-16 text-center shadow-sm">
-                <h2 className="text-xl font-bold text-neutral-dark">No mock profiles match this combination</h2>
+                <h2 className="text-xl font-bold text-neutral-dark">No profiles match this combination</h2>
                 <p className="mt-2 text-sm text-neutral-light">Try another city, gender, or availability type.</p>
                 <button onClick={startAgain} className="mt-6 rounded-full bg-primary px-5 py-3 font-bold text-white hover:bg-primary-hover">Start a new search</button>
               </div>

@@ -1,19 +1,22 @@
-import { BadgeCheck, Clock3, MapPin, Star } from 'lucide-react';
+import { BadgeCheck, Clock3, Heart, MapPin, Star } from 'lucide-react';
 import type { Staff } from '../types';
 
 interface StaffCardProps {
   staff: Staff;
   onClick: () => void;
   baseUrl?: string;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
-export function StaffCard({ staff, onClick, baseUrl = '' }: StaffCardProps) {
+export function StaffCard({ staff, onClick, baseUrl = '', isFavorite = false, onToggleFavorite }: StaffCardProps) {
   const photo = staff.photoUrl.startsWith('http') || staff.photoUrl.startsWith('/home_files')
     ? staff.photoUrl
     : `${baseUrl}${staff.photoUrl}`;
 
   return (
-    <button type="button" onClick={onClick} className="staff-card">
+    <div className="relative">
+      <button type="button" onClick={onClick} className="staff-card w-full">
       <span className="staff-card__media">
         {photo ? <img src={photo} alt={`${staff.name} profile`} loading="lazy" /> : <span className="staff-card__fallback">{staff.name.charAt(0)}</span>}
         <span className={`staff-card__status ${staff.isActive ? 'is-online' : ''}`}>
@@ -37,6 +40,17 @@ export function StaffCard({ staff, onClick, baseUrl = '' }: StaffCardProps) {
           <strong>{staff.price.toFixed(0)} USDT <small>/ hour</small></strong>
         </span>
       </span>
-    </button>
+      </button>
+      {onToggleFavorite && (
+        <button
+          type="button"
+          onClick={onToggleFavorite}
+          aria-label={isFavorite ? `Remove ${staff.name} from favorites` : `Add ${staff.name} to favorites`}
+          className={`absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${isFavorite ? 'bg-primary text-white' : 'bg-white/90 text-neutral-dark hover:bg-white'}`}
+        >
+          <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+        </button>
+      )}
+    </div>
   );
 }

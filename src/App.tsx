@@ -13,6 +13,7 @@ import { WhySmooci } from './components/WhySmooci';
 import { Footer } from './components/Footer';
 import { StaffDetail } from './components/StaffDetail';
 import { MeetEscortFlow } from './components/MeetEscortFlow';
+import { FavoritesPanel } from './components/FavoritesPanel';
 
 // Import Types, mock fallback list, and API service functions
 // 引入类型声明、本地备用数据与 API 请求函数
@@ -27,6 +28,18 @@ const mergeStaffData = (items: Staff[]) => items.map((item) => {
   const fallback = mockStaffList.find((staff) => staff.id === item.id);
   return fallback ? { ...fallback, ...item, location: item.location ?? fallback.location, languages: item.languages ?? fallback.languages } : item;
 });
+
+const FAVORITES_STORAGE_KEY = 'meet_escort_favorite_ids';
+
+const loadFavoriteIds = (): Set<number> => {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || '[]');
+    return new Set(Array.isArray(saved) ? saved.filter((id): id is number => Number.isInteger(id)) : []);
+  } catch {
+    return new Set();
+  }
+};
 
 /**
  * App Root Component
@@ -46,6 +59,8 @@ export default function App() {
   // 页面骨架屏加载状态
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isMeetFlowOpen, setIsMeetFlowOpen] = useState<boolean>(false);
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(loadFavoriteIds);
 
   // Simple query-param based routing to toggle between main view and payment confirm view
   // 基于查询参数的简易路由，决定渲染主应用还是支付确认界面
@@ -92,6 +107,18 @@ export default function App() {
         setIsLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(favoriteIds)));
+  }, [favoriteIds]);
+
+  const toggleFavorite = (id: number) => {
+    setFavoriteIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   // Automatically open staff detail if staffId is present in URL query
   // 若 URL 查询参数中包含 staffId，则在列表拉取完成后，自动打开对应陪侍人员详情弹窗
@@ -188,6 +215,9 @@ export default function App() {
         onStaffClick={handleStaffClick} 
         isLoading={isLoading} 
         baseUrl={API_BASE_URL}
+        favoriteIds={favoriteIds}
+        onToggleFavorite={toggleFavorite}
+        onShowFavorites={() => setIsFavoritesOpen(true)}
       />
 
       {/* 7. Platform Features and values */}
@@ -217,17 +247,35 @@ export default function App() {
         onClose={handleCloseModal} 
         baseUrl={API_BASE_URL}
         fetchDetailApi={fetchStaffDetail}
+        isFavorite={selectedStaff ? favoriteIds.has(selectedStaff.id) : false}
+        onToggleFavorite={toggleFavorite}
       />
 
       {isMeetFlowOpen && (
         <MeetEscortFlow
-          staffList={mockStaffList}
+          staffList={staffList.length ? staffList : mockStaffList}
           baseUrl={API_BASE_URL}
           onClose={() => setIsMeetFlowOpen(false)}
           onStaffClick={(staff) => {
             setIsMeetFlowOpen(false);
             handleStaffClick(staff);
           }}
+          favoriteIds={favoriteIds}
+          onToggleFavorite={toggleFavorite}
+        />
+      )}
+
+      {isFavoritesOpen && (
+        <FavoritesPanel
+          staffList={staffList}
+          favoriteIds={favoriteIds}
+          baseUrl={API_BASE_URL}
+          onClose={() => setIsFavoritesOpen(false)}
+          onStaffClick={(staff) => {
+            setIsFavoritesOpen(false);
+            handleStaffClick(staff);
+          }}
+          onToggleFavorite={toggleFavorite}
         />
       )}
     </div>

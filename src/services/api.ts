@@ -1,10 +1,8 @@
 import axios from 'axios';
-import type { Staff } from '../types';
+import type { AppSettings, CityRecord, Staff, StaffComment } from '../types';
 
-// The BaseURL for the backend services, fallback to direct domain if environment variable is not defined.
-// 接口 BaseURL，默认指向 https://wofacai.vip (已从 3xrs6.com 更新为 wofacai.vip)
-// The API client will use this domain to make all Axios HTTP requests.
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wofacai.vip';
+// The documented backend domain can be overridden for another environment.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://3xrs6.com';
 
 // Axios Instance creation
 // 创建带有 BaseURL 的 Axios 实例
@@ -54,6 +52,31 @@ export const fetchStaffDetail = async (id: number): Promise<Staff> => {
   }
   
   throw new Error(response.data.msg || `Failed to fetch detail for staff ID ${id}.`);
+};
+
+/** Fetch public comments for a staff profile, newest first. */
+export const fetchStaffComments = async (id: number): Promise<StaffComment[]> => {
+  const response = await apiClient.get<ApiResponse<StaffComment[]>>(`/api/staff/${id}/comments`);
+
+  if (response.data.code === 0) {
+    return response.data.data;
+  }
+
+  throw new Error(response.data.msg || `Failed to fetch comments for staff ID ${id}.`);
+};
+
+/** Fetch cities available to the meet-search flow. */
+export const fetchCities = async (): Promise<CityRecord[]> => {
+  const response = await apiClient.get<ApiResponse<CityRecord[]>>('/api/cities');
+  if (response.data.code === 0) return response.data.data;
+  throw new Error(response.data.msg || 'Failed to fetch cities.');
+};
+
+/** Fetch public settings, including the configured TRON receiving address. */
+export const fetchSettings = async (): Promise<AppSettings> => {
+  const response = await apiClient.get<ApiResponse<AppSettings>>('/api/settings');
+  if (response.data.code === 0) return response.data.data;
+  throw new Error(response.data.msg || 'Failed to fetch settings.');
 };
 
 // Export base URL for image path resolution inside component cards

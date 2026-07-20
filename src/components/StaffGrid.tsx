@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { SlidersHorizontal, Users } from 'lucide-react';
+import { Heart, SlidersHorizontal, Users } from 'lucide-react';
 import type { SearchCriteria, Staff } from '../types';
 import { StaffCard } from './StaffCard';
 
@@ -10,6 +10,9 @@ interface StaffGridProps {
   baseUrl?: string;
   criteria?: SearchCriteria;
   resultsMode?: boolean;
+  favoriteIds?: Set<number>;
+  onToggleFavorite?: (id: number) => void;
+  onShowFavorites?: () => void;
 }
 
 export function StaffGrid({
@@ -19,6 +22,9 @@ export function StaffGrid({
   baseUrl = '',
   criteria,
   resultsMode = false,
+  favoriteIds = new Set(),
+  onToggleFavorite,
+  onShowFavorites,
 }: StaffGridProps) {
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('recommended');
@@ -57,6 +63,7 @@ export function StaffGrid({
             <p>{resultsMode ? `${visibleStaff.length} profiles match your request` : 'Verified profiles with recent activity and quick response times.'}</p>
           </div>
           <div className="directory-controls">
+            {onShowFavorites && <button type="button" onClick={onShowFavorites} className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-neutral-dark transition hover:border-primary hover:text-primary"><Heart className={`h-4 w-4 ${favoriteIds.size ? 'fill-primary text-primary' : ''}`} /> Favorites ({favoriteIds.size})</button>}
             <label>
               <span className="sr-only">Search profiles</span>
               <input
@@ -86,7 +93,7 @@ export function StaffGrid({
         ) : visibleStaff.length ? (
           <div className="staff-grid">
             {visibleStaff.map((staff) => (
-              <StaffCard key={staff.id} staff={staff} onClick={() => onStaffClick(staff)} baseUrl={baseUrl} />
+              <StaffCard key={staff.id} staff={staff} onClick={() => onStaffClick(staff)} baseUrl={baseUrl} isFavorite={favoriteIds.has(staff.id)} onToggleFavorite={() => onToggleFavorite?.(staff.id)} />
             ))}
           </div>
         ) : (

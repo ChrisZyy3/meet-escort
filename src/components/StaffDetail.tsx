@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
-import type { Staff } from '../types';
+import type { Staff, StaffComment } from '../types';
 // Import Lock, Unlock, and Phone icons for high-quality Web3 payment visual indicators
 // 导入锁具与电话图标，提供高品质 Web3 支付状态反馈
 import { CalendarDays, Heart, Languages, Lock, Ruler, Share2, Star, Unlock } from 'lucide-react';
@@ -9,12 +9,15 @@ import { CalendarDays, Heart, Languages, Lock, Ruler, Share2, Star, Unlock } fro
 import { isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
 import { BookingRequestFlow } from './BookingRequestFlow';
 import { mockStaffSearchMeta } from '../mockData';
+import { fetchStaffComments } from '../services/api';
 
 interface StaffDetailProps {
   staff: Staff | null;
   onClose: () => void;
   baseUrl?: string;
   fetchDetailApi?: (id: number) => Promise<Staff>; // Phase 2: Async details fetcher
+  isFavorite?: boolean;
+  onToggleFavorite?: (id: number) => void;
 }
 
 const galleryPool = [
@@ -39,7 +42,9 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   staff, 
   onClose, 
   baseUrl = '',
-  fetchDetailApi
+  fetchDetailApi,
+  isFavorite = false,
+  onToggleFavorite
 }) => {
   const [detailData, setDetailData] = useState<Staff | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -63,7 +68,9 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
   const [showRequestFlow, setShowRequestFlow] = useState<boolean>(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [comments, setComments] = useState<StaffComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
 
   // Form input fields for booking details, initialize bookingTime to tomorrow (T+1) at 18:00
   // 预约信息录入表单的各输入字段状态，初始化预约时间为明天 (T+1) 的 18:00
@@ -235,7 +242,6 @@ export const StaffDetail: FC<StaffDetailProps> = ({
     setDetailData(staff);
     setError(null);
     setActivePhotoIndex(0);
-    setIsFavorite(false);
 
     if (staff && fetchDetailApi) {
       // Async detail fetch for Phase 2 API integration
@@ -253,6 +259,17 @@ export const StaffDetail: FC<StaffDetailProps> = ({
         });
     }
   }, [staff, fetchDetailApi]);
+
+  useEffect(() => {
+    if (!staff) return;
+    setComments([]);
+    setCommentsError(null);
+    setCommentsLoading(true);
+    fetchStaffComments(staff.id)
+      .then((data) => setComments(data))
+      .catch(() => setCommentsError('Comments are temporarily unavailable.'))
+      .finally(() => setCommentsLoading(false));
+  }, [staff]);
 
   // Lock scrolling on document body while the modal is open
   // 当模态弹窗打开时，锁定页面主体滚动
@@ -334,7 +351,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
             )}
             <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
               <button
-                onClick={() => setIsFavorite((value) => !value)}
+                onClick={() => onToggleFavorite?.(staff.id)}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition ${isFavorite ? 'bg-primary text-white' : 'bg-white/85 text-neutral-dark hover:bg-white'}`}
               >
@@ -386,11 +403,11 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               {/* Description bio text */}
               {/* 简介 / 描述 */}
               <p className="text-sm md:text-base text-neutral-medium dark:text-zinc-300 leading-relaxed mb-6 whitespace-pre-line min-h-[100px]">
-                {loading ? 'Loading details...' : (detailData?.description || 'Professional service provider.')}
+                {loading ? 'Loading details...' : (detailData?.details || detailData?.description || staff.description || 'Professional service provider.')}
               </p>
 
               <div className="mb-6 grid grid-cols-2 gap-3 rounded-2xl bg-neutral-bgLight p-4 text-sm">
-                <ProfileItem label="City" value={profileMeta?.city || 'Available on request'} />
+                <ProfileItem label="City" value={detailData?.city || staff.city || profileMeta?.city || 'Available on request'} />
                 <ProfileItem label="Profile" value={profileMeta?.gender || 'Independent'} />
                 <ProfileItem label="Availability" value="Online now" />
                 <ProfileItem label="Services" value={profileMeta?.modes.join(' · ') || 'On request'} />
@@ -403,6 +420,32 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <div className="rounded-xl border border-gray-100 p-3 text-center"><Ruler className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{height} cm</p><p className="text-[10px] text-neutral-light">{bodyType}</p></div>
                 <div className="rounded-xl border border-gray-100 p-3 text-center"><Languages className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-xs font-extrabold text-neutral-dark">{languages}</p><p className="mt-1 text-[10px] text-neutral-light">Languages</p></div>
               </div>
+
+              <section className="mb-6 border-t border-gray-100 pt-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-base font-extrabold text-neutral-dark">Reviews</h4>
+                  <span className="text-xs font-semibold text-neutral-light">Newest first</span>
+                </div>
+                {commentsLoading ? (
+                  <p className="text-sm text-neutral-light">Loading reviews...</p>
+                ) : commentsError ? (
+                  <p className="text-sm text-neutral-light">{commentsError}</p>
+                ) : comments.length === 0 ? (
+                  <p className="rounded-xl bg-neutral-bgLight px-4 py-3 text-sm text-neutral-light">No reviews yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {comments.map((comment) => (
+                      <article key={comment.id} className="rounded-xl bg-neutral-bgLight p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-bold text-neutral-dark">{comment.author}</p>
+                          <time className="shrink-0 text-xs text-neutral-light">{new Date(comment.createdAt).toLocaleDateString()}</time>
+                        </div>
+                        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-neutral-medium">{comment.content}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
 
               {/* Created date & metadata info */}
               {/* 细节元数据 */}

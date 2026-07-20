@@ -9,11 +9,15 @@ export interface Staff {
   id: number;
   name: string;
   description: string;
-  phone: string;
+  phone?: string;
   price: number;
   photoUrl: string;
   isActive: boolean;
   createdAt?: string;
+  details?: string;
+  country?: string;
+  city?: string;
+  address?: string;
   location?: string;
   age?: number;
   rating?: number;
@@ -21,6 +25,25 @@ export interface Staff {
   languages?: string[];
   verified?: boolean;
   responseMinutes?: number;
+}
+
+export interface StaffComment {
+  id: number;
+  author: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CityRecord {
+  id: number;
+  continent: string;
+  country: string;
+  city: string;
+  createdAt: string;
+}
+
+export interface AppSettings {
+  tronAddress: string;
 }
 
 export interface SearchCriteria {
