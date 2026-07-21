@@ -17,17 +17,27 @@ import { FavoritesPanel } from './components/FavoritesPanel';
 
 // Import Types, mock fallback list, and API service functions
 // 引入类型声明、本地备用数据与 API 请求函数
-import type { Staff } from './types';
+import type { AuthUser, Staff } from './types';
 import { mockStaffList } from './mockData';
-import { fetchStaffList, fetchStaffDetail, API_BASE_URL } from './services/api';
+import {
+  API_BASE_URL,
+  clearAuthSession,
+  fetchCurrentUser,
+  fetchStaffDetail,
+  fetchStaffList,
+  getStoredAuthToken,
+  getStoredAuthUser,
+  logoutUser,
+  mergeStaffWithFallback,
+} from './services/api';
 // Import the new Web3 payment confirmation component
 // 导入新增的 Web3 支付确认页组件
 import { PaymentConfirm } from './components/PaymentConfirm';
+import { AuthModal } from './components/AuthModal';
+import { Toast, type ToastKind } from './components/Toast';
 
-const mergeStaffData = (items: Staff[]) => items.map((item) => {
-  const fallback = mockStaffList.find((staff) => staff.id === item.id);
-  return fallback ? { ...fallback, ...item, location: item.location ?? fallback.location, languages: item.languages ?? fallback.languages } : item;
-});
+const mergeStaffData = (items: Staff[]) =>
+  items.map((item) => mergeStaffWithFallback(item, mockStaffList.find((staff) => staff.id === item.id)));
 
 const FAVORITES_STORAGE_KEY = 'meet_escort_favorite_ids';
 
@@ -60,6 +70,9 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isMeetFlowOpen, setIsMeetFlowOpen] = useState<boolean>(false);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => getStoredAuthUser());
+  const [toast, setToast] = useState<{ message: string; kind: ToastKind } | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(loadFavoriteIds);
 
   // Simple query-param based routing to toggle between main view and payment confirm view
@@ -108,6 +121,17 @@ export default function App() {
       });
   }, []);
 
+  // Restore session from stored token when the app loads
+  useEffect(() => {
+    if (!getStoredAuthToken()) return;
+    fetchCurrentUser()
+      .then((user) => setAuthUser(user))
+      .catch(() => {
+        clearAuthSession();
+        setAuthUser(null);
+      });
+  }, []);
+
   useEffect(() => {
     localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(favoriteIds)));
   }, [favoriteIds]);
@@ -118,6 +142,10 @@ export default function App() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const showToast = (message: string, kind: ToastKind = 'success') => {
+    setToast({ message, kind });
   };
 
   // Automatically open staff detail if staffId is present in URL query
@@ -185,7 +213,15 @@ export default function App() {
 
       {/* 2. Platform Navigation */}
       {/* 导航栏 */}
-      <Navbar />
+      <Navbar
+        user={authUser}
+        onLoginClick={() => setIsAuthOpen(true)}
+        onLogoutClick={async () => {
+          await logoutUser();
+          setAuthUser(null);
+          showToast('You have been logged out.');
+        }}
+      />
 
       {/* 3. Hero Section (using the first 8 staff members as bubble avatars) */}
       {/* 巨幕展示区（气泡头像使用拉取的前 8 位人员数据） */}
@@ -278,6 +314,20 @@ export default function App() {
           onToggleFavorite={toggleFavorite}
         />
       )}
+
+      {isAuthOpen && (
+        <AuthModal
+          onClose={() => setIsAuthOpen(false)}
+          onError={(message) => showToast(message, 'error')}
+          onAuthenticated={(session, mode) => {
+            setAuthUser(session.user);
+            setIsAuthOpen(false);
+            showToast(mode === 'register' ? 'Account created successfully.' : 'Successfully signed in.');
+          }}
+        />
+      )}
+
+      {toast ? <Toast message={toast.message} kind={toast.kind} onClose={() => setToast(null)} /> : null}
     </div>
   );
 }

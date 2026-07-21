@@ -9,7 +9,7 @@ import { CalendarDays, Heart, Languages, Lock, Ruler, Share2, Star, Unlock } fro
 import { isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
 import { BookingRequestFlow } from './BookingRequestFlow';
 import { mockStaffSearchMeta } from '../mockData';
-import { fetchStaffComments } from '../services/api';
+import { fetchStaffComments, mergeStaffWithFallback, resolveMediaUrl } from '../services/api';
 
 interface StaffDetailProps {
   staff: Staff | null;
@@ -20,6 +20,7 @@ interface StaffDetailProps {
   onToggleFavorite?: (id: number) => void;
 }
 
+/** Local gallery fillers only used when a profile has fewer than 2 real photos. */
 const galleryPool = [
   '/home_files/andreana-17822594432826.jpg',
   '/home_files/bailey-17821383254401.jpg',
@@ -28,9 +29,6 @@ const galleryPool = [
   '/home_files/rose-in-thailand-16503764477841.jpg',
   '/home_files/rio-nanase-17229186235364.jpg'
 ];
-
-const bodyTypes = ['Petite', 'Slim', 'Athletic', 'Curvy'];
-const languageSets = ['English · Thai', 'English · Japanese', 'English · French', 'English · Spanish'];
 
 /**
  * StaffDetail Component
@@ -249,7 +247,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
       setLoading(true);
       fetchDetailApi(staff.id)
         .then((data) => {
-          setDetailData(data);
+          setDetailData(mergeStaffWithFallback(data, staff));
           setLoading(false);
         })
         .catch((err) => {
@@ -286,24 +284,34 @@ export const StaffDetail: FC<StaffDetailProps> = ({
 
   if (!staff) return null;
 
-  // Resolve photo URL absolute path
-  // 解析绝对图片地址
-  const galleryPhotos = [detailData?.photoUrl || staff.photoUrl, ...galleryPool.slice(staff.id % galleryPool.length), ...galleryPool.slice(0, staff.id % galleryPool.length)]
+  const profile = detailData || staff;
+  // Prefer real API photoUrls; only pad with local mock fillers when the profile has a single/no photo
+  const apiPhotos = (profile.photoUrls?.length ? profile.photoUrls : profile.photoUrl ? [profile.photoUrl] : [])
+    .filter(Boolean);
+  const galleryPhotos = (
+    apiPhotos.length >= 2
+      ? apiPhotos
+      : [
+          ...apiPhotos,
+          ...galleryPool.slice(staff.id % galleryPool.length),
+          ...galleryPool.slice(0, staff.id % galleryPool.length),
+        ]
+  )
     .filter((photo, index, all): photo is string => Boolean(photo) && all.indexOf(photo) === index)
-    .slice(0, 4);
-  const activePhoto = galleryPhotos[activePhotoIndex] || detailData?.photoUrl || staff.photoUrl;
-  const resolvedPhoto = activePhoto
-    ? (activePhoto.startsWith('http') || activePhoto.startsWith('/home_files')
-        ? activePhoto
-        : `${baseUrl}${activePhoto}`)
-    : '';
+    .slice(0, 6);
+  const activePhoto = galleryPhotos[activePhotoIndex] || profile.photoUrl || '';
+  const resolvedPhoto = resolveMediaUrl(activePhoto, baseUrl);
   const profileMeta = mockStaffSearchMeta[staff.id];
   const directContactEnabled = import.meta.env.VITE_ENABLE_DIRECT_CONTACT === 'true';
-  const rating = (4.6 + (staff.id % 5) / 10).toFixed(1);
-  const reviewCount = 12 + staff.id * 3;
-  const height = 158 + (staff.id % 15);
-  const bodyType = bodyTypes[staff.id % bodyTypes.length];
-  const languages = languageSets[staff.id % languageSets.length];
+  const rating = profile.rating && profile.rating > 0 ? profile.rating.toFixed(1) : 'New';
+  const reviewCount = profile.reviewCount ?? comments.length;
+  const height = profile.height && profile.height > 0 ? profile.height : undefined;
+  const bodyType = profile.bodyType || profile.size || undefined;
+  const languagesLabel = profile.languages?.length
+    ? profile.languages.join(' · ')
+    : undefined;
+  const cityLabel = profile.city || profile.location || profileMeta?.city || 'Available on request';
+  const countryLabel = profile.country;
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -364,9 +372,9 @@ export const StaffDetail: FC<StaffDetailProps> = ({
             {galleryPhotos.length > 1 && (
               <div className="absolute bottom-4 left-4 right-4 flex gap-2 overflow-x-auto pb-1">
                 {galleryPhotos.map((photo, index) => {
-                  const thumbnail = photo.startsWith('http') || photo.startsWith('/home_files') ? photo : `${baseUrl}${photo}`;
+                  const thumbnail = resolveMediaUrl(photo, baseUrl);
                   return (
-                    <button key={photo} onClick={() => setActivePhotoIndex(index)} className={`h-14 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${activePhotoIndex === index ? 'border-primary' : 'border-white/80 opacity-75 hover:opacity-100'}`}>
+                    <button key={`${photo}-${index}`} onClick={() => setActivePhotoIndex(index)} className={`h-14 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${activePhotoIndex === index ? 'border-primary' : 'border-white/80 opacity-75 hover:opacity-100'}`}>
                       <img src={thumbnail} alt={`${staff.name} gallery ${index + 1}`} className="h-full w-full object-cover" />
                     </button>
                   );
@@ -390,35 +398,38 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 {/* Price Display */}
                 {/* 价格 */}
                 <span className="text-lg md:text-xl font-extrabold text-primary">
-                  {detailData?.price ? `$${detailData.price.toFixed(2)} / hr` : 'Price on request'}
+                  {profile.price ? `$${profile.price.toFixed(2)} / hr` : 'Price on request'}
                 </span>
               </div>
 
               {/* Name header */}
               {/* 姓名 */}
               <h3 className="text-2xl md:text-4xl font-extrabold text-neutral-dark dark:text-white mb-2">
-                {detailData?.name || staff.name}
+                {profile.name}{profile.age ? `, ${profile.age}` : ''}
               </h3>
 
               {/* Description bio text */}
               {/* 简介 / 描述 */}
               <p className="text-sm md:text-base text-neutral-medium dark:text-zinc-300 leading-relaxed mb-6 whitespace-pre-line min-h-[100px]">
-                {loading ? 'Loading details...' : (detailData?.details || detailData?.description || staff.description || 'Professional service provider.')}
+                {loading
+                  ? 'Loading details...'
+                  : (profile.details || profile.description || profile.preferences || 'Professional service provider.')}
               </p>
 
               <div className="mb-6 grid grid-cols-2 gap-3 rounded-2xl bg-neutral-bgLight p-4 text-sm">
-                <ProfileItem label="City" value={detailData?.city || staff.city || profileMeta?.city || 'Available on request'} />
-                <ProfileItem label="Profile" value={profileMeta?.gender || 'Independent'} />
-                <ProfileItem label="Availability" value="Online now" />
+                <ProfileItem label="City" value={cityLabel} />
+                {countryLabel ? <ProfileItem label="Country" value={countryLabel} /> : <ProfileItem label="Profile" value={profileMeta?.gender || 'Independent'} />}
+                <ProfileItem label="Availability" value={profile.isActive ? 'Online now' : 'Replies today'} />
                 <ProfileItem label="Services" value={profileMeta?.modes.join(' · ') || 'On request'} />
-                {detailData?.createdAt && <ProfileItem label="Member since" value={new Date(detailData.createdAt).toLocaleDateString()} />}
-                <ProfileItem label="Response time" value="Usually within 30 min" />
+                {profile.createdAt && <ProfileItem label="Member since" value={new Date(profile.createdAt).toLocaleDateString()} />}
+                {profile.preferences ? <ProfileItem label="Preferences" value={profile.preferences} /> : <ProfileItem label="Response time" value={profile.responseMinutes ? `~${profile.responseMinutes} min` : 'Usually within 30 min'} />}
+                {profile.size ? <ProfileItem label="Measurements" value={profile.size} /> : null}
               </div>
 
               <div className="mb-6 grid grid-cols-3 gap-3">
                 <div className="rounded-xl border border-gray-100 p-3 text-center"><Star className="mx-auto h-4 w-4 fill-yellow-400 text-yellow-400" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{rating}</p><p className="text-[10px] text-neutral-light">{reviewCount} reviews</p></div>
-                <div className="rounded-xl border border-gray-100 p-3 text-center"><Ruler className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{height} cm</p><p className="text-[10px] text-neutral-light">{bodyType}</p></div>
-                <div className="rounded-xl border border-gray-100 p-3 text-center"><Languages className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-xs font-extrabold text-neutral-dark">{languages}</p><p className="mt-1 text-[10px] text-neutral-light">Languages</p></div>
+                <div className="rounded-xl border border-gray-100 p-3 text-center"><Ruler className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{height ? `${height} cm` : '—'}</p><p className="text-[10px] text-neutral-light">{bodyType || 'Body'}</p></div>
+                <div className="rounded-xl border border-gray-100 p-3 text-center"><Languages className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-xs font-extrabold text-neutral-dark">{languagesLabel || '—'}</p><p className="mt-1 text-[10px] text-neutral-light">Languages</p></div>
               </div>
 
               <section className="mb-6 border-t border-gray-100 pt-5">
@@ -450,8 +461,8 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               {/* Created date & metadata info */}
               {/* 细节元数据 */}
               <div className="text-xs text-neutral-light dark:text-zinc-500 space-y-1 mb-8">
-                {detailData?.createdAt && (
-                  <div>Registered on: {new Date(detailData.createdAt).toLocaleDateString()}</div>
+                {profile.createdAt && (
+                  <div>Registered on: {new Date(profile.createdAt).toLocaleDateString()}</div>
                 )}
                 {error && <div className="text-red-500 font-semibold">{error}</div>}
               </div>
@@ -460,11 +471,11 @@ export const StaffDetail: FC<StaffDetailProps> = ({
             {/* Direct Communication Action row */}
             {/* 通讯与预约操作栏 */}
             <div className="space-y-3">
-              {detailData?.phone && directContactEnabled ? (
+              {profile.phone && directContactEnabled ? (
                 /* Primary Call Button with masked/full phone number based on payment status */
                 /* 呼叫热线电话（根据支付状态展示掩码/完整电话，并处理支付跳转） */
                 <a
-                  href={`tel:${detailData.phone}`}
+                  href={`tel:${profile.phone}`}
                   onClick={(e) => {
                     if (!isPaid) {
                       // Prevent telephone dialing if not paid, and trigger payment flow directly instead of showing booking form
@@ -478,7 +489,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                   {isPaid ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
                   <span>
                     {(isPaid ? 'Call Now: ' : 'Unlock Call Now: ') + (() => {
-                      const phone = detailData.phone.trim();
+                      const phone = profile.phone!.trim();
                       if (isPaid) return phone;
                       if (phone.length <= 4) return phone;
                       return '*'.repeat(phone.length - 4) + phone.slice(-4);

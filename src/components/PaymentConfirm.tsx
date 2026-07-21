@@ -23,6 +23,7 @@ import {
   redirectAfterPaymentSuccess,
   markOrderPaymentCompleted
 } from '../services/tron-pay';
+import { fetchSettings } from '../services/api';
 
 // Props definition for the PaymentConfirm component
 // 支付确认页组件的属性接口声明
@@ -90,6 +91,10 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
   // 支付多阶段执行的详情描述
   const [payStage, setPayStage] = useState<string>('');
 
+  // Backend-configured TRON receive address from GET /api/settings (display only)
+  // 后台配置的 TRON 收款地址；支付合约仍使用 DEPOSIT_CONTRACT
+  const [tronReceiveAddress, setTronReceiveAddress] = useState<string>('');
+
   // Local storage address details mapping
   // 钱包余额及地址详情状态，加入 allowance 字段记录授权额度
   const [wallet, setWallet] = useState<{
@@ -145,6 +150,21 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
     if (isBooking) return '1.00';
     return selectedStaff?.price ? selectedStaff.price.toString() : (getUrlParam('price') || '1.00');
   }, [selectedStaff, isBooking]);
+
+  // Load public payment settings (TRON address for display / QR)
+  useEffect(() => {
+    let active = true;
+    fetchSettings()
+      .then((settings) => {
+        if (active) setTronReceiveAddress(settings.tronAddress || '');
+      })
+      .catch(() => {
+        // Keep empty; UI falls back to the deposit contract address.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Run dynamic tick countdown
   // 倒计时实时刷新定时器逻辑
@@ -550,7 +570,18 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
         {/* Contract notice text */}
         {/* 收款说明 */}
         <p className="text-[10px] text-zinc-500 text-center leading-relaxed px-4 mb-6">
-          {t('payment.contractDesc')}: <span className="font-mono text-zinc-400 block break-all font-bold mt-1 bg-zinc-950 py-1 rounded border border-zinc-800/40">{DEPOSIT_CONTRACT}</span>
+          {t('payment.contractDesc')}:{' '}
+          <span className="font-mono text-zinc-400 block break-all font-bold mt-1 bg-zinc-950 py-1 rounded border border-zinc-800/40">
+            {DEPOSIT_CONTRACT}
+          </span>
+          {tronReceiveAddress ? (
+            <span className="mt-3 block text-[11px] text-zinc-500">
+              Configured receive address (from settings):
+              <span className="font-mono text-zinc-300 block break-all font-bold mt-1 bg-zinc-950 py-1 rounded border border-zinc-800/40">
+                {tronReceiveAddress}
+              </span>
+            </span>
+          ) : null}
         </p>
 
         {/* Footer pay trigger CTA button */}

@@ -39,9 +39,18 @@ export function StaffGrid({
       if (criteria?.availableNow && !staff.isActive) return false;
       if (criteria && matchingCityExists && staff.location !== criteria.city) return false;
       if (!normalizedQuery) return true;
-      return [staff.name, staff.description, staff.location, ...(staff.languages ?? [])]
+      return [
+        staff.name,
+        staff.description,
+        staff.location,
+        staff.city,
+        staff.country,
+        staff.bodyType,
+        staff.preferences,
+        ...(staff.languages ?? []),
+      ]
         .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(normalizedQuery));
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
     });
 
     return result.toSorted((left, right) => {

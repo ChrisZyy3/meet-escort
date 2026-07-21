@@ -1,5 +1,6 @@
 import { BadgeCheck, Clock3, Heart, MapPin, Star } from 'lucide-react';
 import type { Staff } from '../types';
+import { resolveMediaUrl } from '../services/api';
 
 interface StaffCardProps {
   staff: Staff;
@@ -10,9 +11,7 @@ interface StaffCardProps {
 }
 
 export function StaffCard({ staff, onClick, baseUrl = '', isFavorite = false, onToggleFavorite }: StaffCardProps) {
-  const photo = staff.photoUrl.startsWith('http') || staff.photoUrl.startsWith('/home_files')
-    ? staff.photoUrl
-    : `${baseUrl}${staff.photoUrl}`;
+  const photo = resolveMediaUrl(staff.photoUrl || staff.photoUrls?.[0], baseUrl);
 
   return (
     <div className="relative">
@@ -28,13 +27,13 @@ export function StaffCard({ staff, onClick, baseUrl = '', isFavorite = false, on
       <span className="staff-card__body">
         <span className="staff-card__title-row">
           <strong>{staff.name}{staff.age ? `, ${staff.age}` : ''}</strong>
-          <span className="staff-card__rating"><Star aria-hidden="true" /> {staff.rating?.toFixed(1) ?? 'New'}</span>
+          <span className="staff-card__rating"><Star aria-hidden="true" /> {staff.rating ? staff.rating.toFixed(1) : 'New'}</span>
         </span>
         <span className="staff-card__meta">
-          <span><MapPin aria-hidden="true" /> {staff.location ?? 'Your area'}</span>
+          <span><MapPin aria-hidden="true" /> {staff.location ?? staff.city ?? 'Your area'}</span>
           <span><Clock3 aria-hidden="true" /> ~{staff.responseMinutes ?? 5} min</span>
         </span>
-        <span className="staff-card__description">{staff.description}</span>
+        <span className="staff-card__description">{staff.description || `Available in ${staff.city || 'your area'}.`}</span>
         <span className="staff-card__footer">
           <span>{staff.reviewCount ?? 0} verified reviews</span>
           <strong>{staff.price.toFixed(0)} USDT <small>/ hour</small></strong>

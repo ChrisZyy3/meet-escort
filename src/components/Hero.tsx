@@ -1,5 +1,6 @@
 import type { FC } from 'react';
 import type { Staff } from '../types';
+import { resolveMediaUrl } from '../services/api';
 
 interface HeroProps {
   staffList: Staff[];
@@ -42,13 +43,7 @@ export const Hero: FC<HeroProps> = ({ staffList, onMeetClick, onStaffClick, base
         {/* 动态在线头像气泡网络 */}
         <div className="flex flex-wrap justify-center gap-4 md:gap-6 mb-12">
           {staffList.slice(0, 8).map((staff) => {
-            // Resolve photo URL absolute path to handle relative uploads path
-            // 对相对路径进行解析并拼接上 API 域名，形成绝对 URL
-            const resolvedPhoto = staff.photoUrl
-              ? (staff.photoUrl.startsWith('http') || staff.photoUrl.startsWith('/home_files')
-                  ? staff.photoUrl 
-                  : `${baseUrl}${staff.photoUrl}`)
-              : '';
+            const resolvedPhoto = resolveMediaUrl(staff.photoUrl || staff.photoUrls?.[0], baseUrl);
 
             return (
               <button

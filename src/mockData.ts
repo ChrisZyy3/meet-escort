@@ -67,6 +67,8 @@ export const mockStaffSearchMeta: Record<number, MockStaffSearchMeta> = mockProf
   return result;
 }, {} as Record<number, MockStaffSearchMeta>);
 
+const mockBodyTypes = ['Petite', 'Slim', 'Athletic', 'Curvy'];
+
 export const mockStaffList: Staff[] = mockProfiles.map((profile, index) => ({
   id: profile.id,
   name: profile.name,
@@ -74,11 +76,17 @@ export const mockStaffList: Staff[] = mockProfiles.map((profile, index) => ({
   phone: `+1 555 010${String(profile.id).padStart(2, '0')}`,
   price: profile.price,
   photoUrl: profile.photoUrl,
+  photoUrls: [profile.photoUrl],
   isActive: true,
   createdAt: `2026-06-${String((profile.id % 28) + 1).padStart(2, '0')}T12:00`,
+  city: profile.city,
   location: profile.city,
   age: 23 + (profile.id % 8),
   rating: Number((4.6 + (profile.id % 5) / 10).toFixed(1)),
+  height: 158 + (profile.id % 15),
+  bodyType: mockBodyTypes[profile.id % mockBodyTypes.length],
+  size: profile.id % 3 === 0 ? '80-60-90' : undefined,
+  preferences: profile.id % 4 === 0 ? 'Fitness, music' : undefined,
   reviewCount: 12 + profile.id * 3,
   languages: profile.gender === 'Male' ? ['English', 'Thai'] : ['English', 'Thai'],
   verified: index % 5 !== 0,
