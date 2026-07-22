@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { FC } from 'react';
+import QRCode from 'qrcode';
 import { 
   Clock, 
   Wallet, 
@@ -8,20 +9,24 @@ import {
   ArrowLeft, 
   CheckCircle, 
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Copy,
+  ExternalLink,
+  QrCode
 } from 'lucide-react';
 import type { Staff } from '../types';
 import {
-  DEPOSIT_CONTRACT,
   FEE_MODE,
   MIN_TRX_PAY_GATE,
   fetchWalletBalances,
-  payOrder,
+  payDirectUsdt,
   validatePaymentReadiness,
   t,
   getUrlParam,
   redirectAfterPaymentSuccess,
-  markOrderPaymentCompleted
+  markOrderPaymentCompleted,
+  WALLET_META,
+  isValidTronRecipientAddress
 } from '../services/tron-pay';
 import { fetchSettings } from '../services/api';
 
@@ -61,7 +66,6 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
   
   // Wallet account resources (Energy & Bandwidth)
   // 钱包账户的可用能量和带宽资源数据
-  const [walletResources, setWalletResources] = useState<{ energy: number; bandwidth: number }>({ energy: 0, bandwidth: 0 });
   
   // Wallet injection ready state
   // 钱包环境就绪状态
@@ -94,6 +98,8 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
   // Backend-configured TRON receive address from GET /api/settings (display only)
   // 后台配置的 TRON 收款地址；支付合约仍使用 DEPOSIT_CONTRACT
   const [tronReceiveAddress, setTronReceiveAddress] = useState<string>('');
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [addressCopied, setAddressCopied] = useState<boolean>(false);
 
   // Local storage address details mapping
   // 钱包余额及地址详情状态，加入 allowance 字段记录授权额度
@@ -147,7 +153,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
   // Order total price display computed value (forces 1.00 USDT for booking deposit, hourly price for unlock)
   // 订单应付的总额（预约定金模式下强制固定为 1.00 USDT，解锁电话模式下使用时薪）
   const orderTotal = useMemo(() => {
-    if (isBooking) return '1.00';
+    if (isBooking) return getUrlParam('price') || '1.00';
     return selectedStaff?.price ? selectedStaff.price.toString() : (getUrlParam('price') || '1.00');
   }, [selectedStaff, isBooking]);
 
@@ -156,15 +162,47 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
     let active = true;
     fetchSettings()
       .then((settings) => {
-        if (active) setTronReceiveAddress(settings.tronAddress || '');
+        if (!active) return;
+        if (!isValidTronRecipientAddress(settings.tronAddress || '')) {
+          setErrorMessage('The configured TRON receiving address is invalid. Please use a normal wallet address, not a token contract address.');
+          setTronReceiveAddress('');
+          return;
+        }
+        setTronReceiveAddress(settings.tronAddress);
       })
       .catch(() => {
-        // Keep empty; UI falls back to the deposit contract address.
+        setErrorMessage('Unable to load the TRON receiving address. Please refresh and try again.');
       });
     return () => {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!tronReceiveAddress) {
+      setQrCodeDataUrl('');
+      return () => {
+        active = false;
+      };
+    }
+
+    QRCode.toDataURL(tronReceiveAddress, {
+      width: 240,
+      margin: 2,
+      errorCorrectionLevel: 'M'
+    })
+      .then((dataUrl) => {
+        if (active) setQrCodeDataUrl(dataUrl);
+      })
+      .catch(() => {
+        if (active) setQrCodeDataUrl('');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [tronReceiveAddress]);
 
   // Run dynamic tick countdown
   // 倒计时实时刷新定时器逻辑
@@ -207,7 +245,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
     try {
       // Direct call to helper inside payment service
       // 聚合调用服务接口，一次性获取地址余额、授权额度与矿工费估算
-      const balances = await fetchWalletBalances(walletType.id, feeMode, orderTotal);
+      const balances = await fetchWalletBalances(walletType.id, feeMode, orderTotal, { directTransfer: true });
       setWallet({
         usdt: balances.usdt,
         trx: balances.trx,
@@ -215,7 +253,6 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
         addressShort: balances.addressShort,
         allowance: balances.allowance
       });
-      setWalletResources(balances.resources || { energy: 0, bandwidth: 0 });
       if (balances.minerFee?.amount) {
         setMinerFeeTrx(balances.minerFee.amount);
       }
@@ -262,7 +299,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
     setFeeMode(mode);
     setLoadingBalance(true);
     try {
-      const balances = await fetchWalletBalances(walletType.id, mode, orderTotal);
+      const balances = await fetchWalletBalances(walletType.id, mode, orderTotal, { directTransfer: true });
       if (balances.minerFee?.amount) {
         setMinerFeeTrx(balances.minerFee.amount);
       }
@@ -282,6 +319,11 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
     // Expire check
     if (expireAt <= Date.now()) {
       setErrorMessage(t('common.orderExpired'));
+      return;
+    }
+
+    if (!tronReceiveAddress) {
+      setErrorMessage('The TRON receiving address is unavailable. Please try again later.');
       return;
     }
 
@@ -309,7 +351,6 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
       trx: wallet.trx,
       orderTotal,
       minerFeeTrx,
-      allowance: wallet.allowance
     });
     if (!readiness.ok) {
       setErrorMessage(readiness.message || 'Validation failed');
@@ -326,21 +367,13 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
     };
 
     try {
-      await payOrder(walletType.id, orderTotal, {
+      await payDirectUsdt(walletType.id, orderTotal, tronReceiveAddress, {
         feeMode,
         onProgress: updateStageText,
         onBeforeWalletSign: () => setPayStage('walletSign'),
         onAfterWalletSign: (stage) => {
           if (stage) setPayStage(stage);
         },
-        paymentSnapshot: {
-          usdt: wallet.usdt,
-          trx: wallet.trx,
-          resources: { ...walletResources },
-          minerFeeTrx: parseFloat(minerFeeTrx),
-          refreshedAt: lastBalanceRefreshAt,
-          allowance: wallet.allowance
-        }
       });
 
       // Complete and cache local paid status
@@ -382,10 +415,25 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
       trx: wallet.trx,
       orderTotal,
       minerFeeTrx,
-      allowance: wallet.allowance
     });
     return check.ok;
   }, [feeMode, wallet, orderTotal, minerFeeTrx]);
+
+  const copyReceiveAddress = async () => {
+    if (!tronReceiveAddress) return;
+    try {
+      await navigator.clipboard.writeText(tronReceiveAddress);
+      setAddressCopied(true);
+      window.setTimeout(() => setAddressCopied(false), 1800);
+    } catch {
+      setErrorMessage('Copy failed. Please select the address manually.');
+    }
+  };
+
+  const openWallet = () => {
+    const walletMeta = WALLET_META[walletType.id] || WALLET_META.tokenpocket;
+    window.location.href = walletMeta.buildDeepLink(window.location.href);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950 text-white font-nunito overflow-y-auto">
@@ -421,7 +469,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
           <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest mb-2">
             {/* Show English heading for outcall booking deposit, or dynamic translated amount due */}
             {/* 仅显示英文头部标题，避免中文混杂 */}
-            {isBooking ? 'Outcall Booking Deposit' : t('payment.amountDue')}
+            {isBooking ? 'Outcall Booking Payment' : t('payment.amountDue')}
           </h2>
           <div className="inline-flex items-baseline gap-2">
             <span className="text-5xl font-extrabold text-white tracking-tight">
@@ -432,7 +480,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
           {selectedStaff && (
             <p className="text-xs text-zinc-500 mt-2">
               {isBooking 
-                ? `Booking deposit for outcall service with `
+                ? `Booking payment for outcall service with `
                 : `Unlocking direct channels with `
               }
               <span className="text-zinc-300 font-semibold">{selectedStaff.name}</span>
@@ -498,6 +546,40 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
                 {wallet.addressShort}
               </span>
             </div>
+          </div>
+
+          <div className="bg-zinc-950/60 border border-primary/20 rounded-2xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-primary">TRC20 USDT payment</p>
+                <p className="mt-1 text-sm font-semibold text-white">Send exactly {parseFloat(orderTotal).toFixed(2)} USDT</p>
+              </div>
+              <QrCode className="h-5 w-5 shrink-0 text-primary" />
+            </div>
+
+            {tronReceiveAddress ? (
+              <>
+                {qrCodeDataUrl ? (
+                  <div className="mx-auto mt-4 w-fit rounded-xl bg-white p-3">
+                    <img src={qrCodeDataUrl} alt="TRON USDT receiving address QR code" className="h-48 w-48" />
+                  </div>
+                ) : null}
+                <p className="mt-3 text-center text-[10px] text-zinc-500">Scan to fill the receiving address. Select TRON / TRC20 and USDT in your wallet.</p>
+                <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2">
+                  <p className="break-all font-mono text-xs font-bold leading-relaxed text-zinc-300">{tronReceiveAddress}</p>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={copyReceiveAddress} className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold text-zinc-200 transition hover:border-primary hover:text-white">
+                    <Copy className="h-3.5 w-3.5" /> {addressCopied ? 'Copied' : 'Copy address'}
+                  </button>
+                  <button type="button" onClick={openWallet} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-primary-hover">
+                    <ExternalLink className="h-3.5 w-3.5" /> Open in wallet
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="mt-4 rounded-xl border border-amber-900/40 bg-amber-950/20 p-3 text-xs font-semibold text-amber-400">Receiving address is loading. Payment is disabled until it is available.</p>
+            )}
           </div>
 
           {/* Gas fee options and estimator selector */}
@@ -570,18 +652,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
         {/* Contract notice text */}
         {/* 收款说明 */}
         <p className="text-[10px] text-zinc-500 text-center leading-relaxed px-4 mb-6">
-          {t('payment.contractDesc')}:{' '}
-          <span className="font-mono text-zinc-400 block break-all font-bold mt-1 bg-zinc-950 py-1 rounded border border-zinc-800/40">
-            {DEPOSIT_CONTRACT}
-          </span>
-          {tronReceiveAddress ? (
-            <span className="mt-3 block text-[11px] text-zinc-500">
-              Configured receive address (from settings):
-              <span className="font-mono text-zinc-300 block break-all font-bold mt-1 bg-zinc-950 py-1 rounded border border-zinc-800/40">
-                {tronReceiveAddress}
-              </span>
-            </span>
-          ) : null}
+          Only send USDT on the TRON / TRC20 network. The payment goes directly to the configured receiving address. Keep enough TRX in your wallet for network fees.
         </p>
 
         {/* Footer pay trigger CTA button */}
@@ -589,13 +660,13 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
         <div>
           <button
             onClick={handlePay}
-            disabled={paying || paymentCompleted || !walletReady || !warningValid}
+            disabled={paying || paymentCompleted || !walletReady || !warningValid || !tronReceiveAddress}
             className={`w-full py-4 rounded-full font-bold flex items-center justify-center gap-2 shadow-lg transition-all duration-300 cursor-pointer ${
               paymentCompleted
                 ? 'bg-green-500 hover:bg-green-600 text-white shadow-green-500/20'
                 : paying
                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50'
-                : !walletReady || !warningValid
+                : !walletReady || !warningValid || !tronReceiveAddress
                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-800/60'
                 : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20 hover:scale-[1.02]'
             }`}

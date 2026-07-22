@@ -18,6 +18,14 @@ export const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 // 我们的收款智能合约（UsdtAccepter）主网部署地址
 export const DEPOSIT_CONTRACT = 'TR1rsFStNdW1QS77DL9gMimHLSRbS1M57z';
 
+// Validate a normal TRON wallet recipient and reject known contract addresses.
+// Direct payment must go to a wallet controlled by the receiving party.
+export function isValidTronRecipientAddress(address: string): boolean {
+  const target = address.trim();
+  if (target === USDT_CONTRACT || target === DEPOSIT_CONTRACT) return false;
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(target);
+}
+
 // Basic TRC20 ABI methods for checking balance, allowance, and approving spender
 // 基础的 TRC20 代币合约 ABI 定义，用于查询余额、授权额度以及授权签名
 const TRC20_ABI = [
@@ -44,6 +52,16 @@ const TRC20_ABI = [
       { name: 'value', type: 'uint256' }
     ],
     name: 'approve',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' }
+    ],
+    name: 'transfer',
     outputs: [{ name: '', type: 'bool' }],
     stateMutability: 'nonpayable',
     type: 'function'
@@ -324,6 +342,7 @@ const TRX_TRANSFER_BANDWIDTH = 268;
 const CONTRACT_TX_BANDWIDTH = 345;
 const USDT_APPROVE_ENERGY_MIN = 64000;
 const USDT_DEPOSIT_ENERGY_MIN = 65000;
+const USDT_TRANSFER_ENERGY_MIN = 65000;
 
 // Tron Web RPC details
 // 波场链节点配置信息，从环境变量读取，回退主网公共节点
@@ -552,6 +571,34 @@ export function isInjectedWalletBrowser(): boolean {
   if (typeof window === 'undefined') return false;
   const win = window as any;
   return !!(win.tronLink?.tronWeb || win.tronWeb || win.okxwallet?.tronLink?.tronWeb || win.bitkeepTronWeb || win.tpTronWeb);
+}
+
+// Identify the wallet provider injected into the current browser page.
+export function detectInjectedWalletId(): string {
+  if (typeof window === 'undefined') return '';
+  const win = window as any;
+  if (win.okxwallet?.tronLink?.tronWeb) return 'okx';
+  if (win.bitkeepTronWeb || win.bitkeep?.tronWeb) return 'bitkeep';
+  if (win.tronLink?.tronWeb || win.tronWeb) return 'tronlink';
+  if (win.tpTronWeb) return 'tokenpocket';
+  return '';
+}
+
+// Connect the provider already injected into the current browser page.
+export async function connectInjectedTronWallet(): Promise<{ walletId: string; address: string }> {
+  const walletId = detectInjectedWalletId();
+  if (!walletId) {
+    throw new Error('No compatible TRON wallet was detected in this browser.');
+  }
+
+  const tronWeb = await waitForTronWeb(walletId);
+  const address = tronWeb.defaultAddress?.base58 || '';
+  if (!address) {
+    throw new Error('The wallet did not provide a TRON account.');
+  }
+
+  setConnectedWalletAddress(address);
+  return { walletId, address };
 }
 
 // Construct external return URL
@@ -861,14 +908,20 @@ async function buildUsdtPaymentSteps(
 
 // Fallback miner fee estimation logic when node query fails
 // 矿工费本地兜底估算（在链上查询出错或节点超时时使用）
-function estimateMinerFeeFallback(feeMode: string, resources: { energy: number; bandwidth: number } = { energy: 0, bandwidth: 0 }) {
+function estimateMinerFeeFallback(
+  feeMode: string,
+  resources: { energy: number; bandwidth: number } = { energy: 0, bandwidth: 0 },
+  directTransfer = false
+) {
   if (feeMode === FEE_MODE.BURN) {
     const mockZeroResources = { energy: 0, bandwidth: 0 };
     const { burnSun } = calcSequentialContractBurnSun({
-      steps: [
-        { energyNeeded: USDT_APPROVE_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH },
-        { energyNeeded: USDT_DEPOSIT_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }
-      ],
+      steps: directTransfer
+        ? [{ energyNeeded: USDT_TRANSFER_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }]
+        : [
+            { energyNeeded: USDT_APPROVE_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH },
+            { energyNeeded: USDT_DEPOSIT_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }
+          ],
       resources: mockZeroResources,
       rates: { energyFeeSun: 420, bandwidthFeeSun: 1000 }
     });
@@ -900,10 +953,12 @@ function estimateMinerFeeFallback(feeMode: string, resources: { energy: number; 
   }
 
   const { burnSun } = calcSequentialContractBurnSun({
-    steps: [
-      { energyNeeded: USDT_APPROVE_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH },
-      { energyNeeded: USDT_DEPOSIT_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }
-    ],
+    steps: directTransfer
+      ? [{ energyNeeded: USDT_TRANSFER_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }]
+      : [
+          { energyNeeded: USDT_APPROVE_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH },
+          { energyNeeded: USDT_DEPOSIT_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }
+        ],
     resources,
     rates: { energyFeeSun: 420, bandwidthFeeSun: 1000 }
   });
@@ -932,7 +987,7 @@ export async function estimateMinerFeeFromChain(
   feeMode: string,
   resources: { energy: number; bandwidth: number } = { energy: 0, bandwidth: 0 },
   orderTotal = '1.00',
-  options: { lightweight?: boolean } = {}
+  options: { lightweight?: boolean; directTransfer?: boolean } = {}
 ) {
   const rates = options.lightweight
     ? { energyFeeSun: 420, bandwidthFeeSun: 1000 }
@@ -961,7 +1016,9 @@ export async function estimateMinerFeeFromChain(
     };
   }
 
-  const { steps } = await buildUsdtPaymentSteps(tronWeb, address, orderTotal, options);
+  const steps = options.directTransfer
+    ? [{ energyNeeded: USDT_TRANSFER_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }]
+    : (await buildUsdtPaymentSteps(tronWeb, address, orderTotal, options)).steps;
   const { burnSun, sufficient } = calcSequentialContractBurnSun({ steps, resources, rates });
 
   if (sufficient) {
@@ -1012,7 +1069,7 @@ export async function fetchAccountResources(tronWeb: any, address: string) {
 // 静默获取钱包账户的 USDT 余额、TRX 余额、资源指标及预估资费
 let walletFetchInFlight: Promise<any> | null = null;
 
-async function fetchWalletBalancesInternal(walletId = '', feeMode = FEE_MODE.RESOURCE, orderTotal = '1.00') {
+async function fetchWalletBalancesInternal(walletId = '', feeMode = FEE_MODE.RESOURCE, orderTotal = '1.00', options: { directTransfer?: boolean } = {}) {
   const tronWeb = await waitForTronWeb(walletId);
   applyTronRpcHost(tronWeb);
 
@@ -1032,10 +1089,12 @@ async function fetchWalletBalancesInternal(walletId = '', feeMode = FEE_MODE.RES
   // 2.5 Get USDT Allowance for the spender contract
   // 获取当前账户已授予收款合约的 USDT 额度
   let allowance = 0n;
-  try {
-    allowance = await getUsdtAllowance(usdtContract, address, DEPOSIT_CONTRACT);
-  } catch (error) {
-    console.warn('Failed to query USDT allowance in balances fetch', error);
+  if (!options.directTransfer) {
+    try {
+      allowance = await getUsdtAllowance(usdtContract, address, DEPOSIT_CONTRACT);
+    } catch (error) {
+      console.warn('Failed to query USDT allowance in balances fetch', error);
+    }
   }
 
   // 3. Fetch resources if in resource mode
@@ -1045,16 +1104,18 @@ async function fetchWalletBalancesInternal(walletId = '', feeMode = FEE_MODE.RES
   }
 
   // 4. Estimate miners fee
-  let minerFee = estimateMinerFeeFallback(feeMode, resources);
+  let minerFee = estimateMinerFeeFallback(feeMode, resources, options.directTransfer);
   if (feeMode === FEE_MODE.BURN) {
     try {
       const rates = await fetchChainFeeRates(tronWeb);
       const mockZeroResources = { energy: 0, bandwidth: 0 };
       const { burnSun } = calcSequentialContractBurnSun({
-        steps: [
-          { energyNeeded: USDT_APPROVE_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH },
-          { energyNeeded: USDT_DEPOSIT_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }
-        ],
+        steps: options.directTransfer
+          ? [{ energyNeeded: USDT_TRANSFER_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }]
+          : [
+              { energyNeeded: USDT_APPROVE_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH },
+              { energyNeeded: USDT_DEPOSIT_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }
+            ],
         resources: mockZeroResources,
         rates
       });
@@ -1073,7 +1134,10 @@ async function fetchWalletBalancesInternal(walletId = '', feeMode = FEE_MODE.RES
     }
   } else {
     try {
-      minerFee = await estimateMinerFeeFromChain(tronWeb, address, feeMode, resources, orderTotal, feeEstimateOptions);
+      minerFee = await estimateMinerFeeFromChain(tronWeb, address, feeMode, resources, orderTotal, {
+        ...feeEstimateOptions,
+        directTransfer: options.directTransfer
+      });
     } catch (error) {
       console.warn('Failed to estimate resource mode miner fee from chain, fallback', error);
     }
@@ -1092,12 +1156,12 @@ async function fetchWalletBalancesInternal(walletId = '', feeMode = FEE_MODE.RES
 
 // Throttled balance and gas fetcher to prevent 429
 // 获取钱包详细账户指标，支持防并发去重合并
-export async function fetchWalletBalances(walletId = '', feeMode = FEE_MODE.RESOURCE, orderTotal = '1.00') {
+export async function fetchWalletBalances(walletId = '', feeMode = FEE_MODE.RESOURCE, orderTotal = '1.00', options: { directTransfer?: boolean } = {}) {
   if (walletFetchInFlight) {
     return walletFetchInFlight;
   }
 
-  walletFetchInFlight = fetchWalletBalancesInternal(walletId, feeMode, orderTotal)
+  walletFetchInFlight = fetchWalletBalancesInternal(walletId, feeMode, orderTotal, options)
     .finally(() => {
       walletFetchInFlight = null;
     });
@@ -1336,13 +1400,19 @@ async function waitForUsdtPaymentEffect(
 async function finalizeSentTransaction(
   tronWeb: any,
   tx: any,
-  options: { onConfirming?: () => void; fallbackCheck?: () => Promise<boolean> } = {}
+  options: { onConfirming?: () => void; fallbackCheck?: () => Promise<boolean>; requireConfirmation?: boolean } = {}
 ) {
   const txid = extractTxId(tx);
   const sendOk = isSendSuccessful(tx);
 
   if (sendOk) {
     options.onConfirming?.();
+    if (options.requireConfirmation && txid) {
+      const info = await waitForTxConfirmed(tronWeb, txid);
+      if (info) return tx;
+      if (options.fallbackCheck && await options.fallbackCheck()) return tx;
+      return null;
+    }
     if (txid) return tx;
     if (options.fallbackCheck && await options.fallbackCheck()) return tx;
     return tx;
@@ -1593,4 +1663,59 @@ export async function payOrder(walletId = '', orderTotal: string | number, optio
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   }
+}
+
+// Direct TRC20 USDT transfer to the address configured by the backend.
+// This is the payment path used when /api/settings returns a normal wallet address.
+export async function payDirectUsdt(
+  walletId = '',
+  orderTotal: string | number,
+  recipient: string,
+  options: {
+    feeMode?: string;
+    onProgress?: (stage: string) => void;
+    onBeforeWalletSign?: () => void;
+    onAfterWalletSign?: (stage: string) => void;
+  } = {}
+): Promise<any> {
+  const amount = toUsdtAmount(orderTotal);
+  const target = recipient.trim();
+  if (amount === '0') throw new Error(t('tronPay.invalidPaymentAmount'));
+
+  const tronWeb = await waitForTronWeb(walletId);
+  applyTronRpcHost(tronWeb);
+  if (!isValidTronRecipientAddress(target) || typeof tronWeb.isAddress !== 'function' || !tronWeb.isAddress(target)) {
+    throw new Error('The configured TRON receiving address is invalid.');
+  }
+
+  const address = tronWeb.defaultAddress.base58;
+  const usdtContract = await tronWeb.contract(TRC20_ABI, USDT_CONTRACT);
+  const txOptions = buildTxSendOptions(options.feeMode === FEE_MODE.BURN ? FEE_MODE.BURN : FEE_MODE.RESOURCE);
+  const signTimeoutMs = walletId === 'imtoken' ? 180000 : 120000;
+
+  options.onProgress?.('deposit');
+  options.onBeforeWalletSign?.();
+
+  let tx: any;
+  try {
+    tx = await promiseWithTimeout(
+      withRetry(() => usdtContract.transfer(target, amount).send(txOptions)),
+      signTimeoutMs,
+      t('tronPay.usdtDepositSignTimeout')
+    );
+  } catch (error: any) {
+    if (isUserRejectedError(error)) throw new Error(t('tronPay.usdtDepositRejected'));
+    if (isRateLimitError(error)) throw new Error(t('tronPay.rateLimitError'));
+    throw new Error(t('tronPay.depositTxFailedDetail', { message: error?.message || String(error) }));
+  } finally {
+    options.onAfterWalletSign?.('depositConfirming');
+  }
+
+  const finalized = await finalizeSentTransaction(tronWeb, tx, {
+    onConfirming: () => options.onProgress?.('depositConfirming'),
+    fallbackCheck: () => waitForUsdtPaymentEffect(usdtContract, address, amount, { timeout: 18000 }),
+    requireConfirmation: true
+  });
+  if (finalized) return finalized;
+  throw new Error(t('tronPay.depositTxFailed'));
 }

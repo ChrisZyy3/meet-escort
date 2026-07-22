@@ -3,11 +3,12 @@ import type { FC } from 'react';
 import type { Staff, StaffComment } from '../types';
 // Import Lock, Unlock, and Phone icons for high-quality Web3 payment visual indicators
 // 导入锁具与电话图标，提供高品质 Web3 支付状态反馈
-import { CalendarDays, Heart, Languages, Lock, Ruler, Share2, Star, Unlock } from 'lucide-react';
+import { CalendarDays, Heart, Languages, Lock, MonitorSmartphone, QrCode, Ruler, Share2, Star, Unlock } from 'lucide-react';
 // Import payment service integration helpers
 // 导入 Web3 支付工具函数进行流程管理与钱包唤起
-import { isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
+import { connectInjectedTronWallet, detectInjectedWalletId, isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
 import { BookingRequestFlow } from './BookingRequestFlow';
+import type { BookingDetails } from './BookingRequestFlow';
 import { mockStaffSearchMeta } from '../mockData';
 import { fetchStaffComments, mergeStaffWithFallback, resolveMediaUrl } from '../services/api';
 
@@ -60,6 +61,8 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   // Wallet selection modal display state
   // 钱包拉起选择框显示状态
   const [showWalletSelector, setShowWalletSelector] = useState<boolean>(false);
+  const [browserWalletConnecting, setBrowserWalletConnecting] = useState<boolean>(false);
+  const [browserWalletError, setBrowserWalletError] = useState<string | null>(null);
 
   // Booking form modal display state
   // 预约上门表单弹窗显示状态
@@ -95,10 +98,11 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   // Flag to indicate if wallet launcher is triggered for booking or phone unlock
   // 标记当前拉起钱包是进行上门服务预约支付（定金 1 USDT），还是解锁联系方式支付
   const [isBookingLaunch, setIsBookingLaunch] = useState<boolean>(false);
+  const [bookingPaymentAmount, setBookingPaymentAmount] = useState<string>('1.00');
 
   // Helper function to launch the target wallet app and load the DApp payment confirmation screen
   // 帮助拉起对应的钱包 App 并在其内置浏览器加载支付确认界面的辅助函数（支持预定定金模式）
-  const handleWalletLaunch = (walletId: 'tronlink' | 'tokenpocket' | 'imtoken' | 'bitkeep') => {
+  const handleWalletLaunch = (walletId: 'tronlink' | 'tokenpocket' | 'imtoken' | 'bitkeep' | 'okx') => {
     try {
       let returnUrl = buildPaymentReturnUrl();
       if (isBookingLaunch) {
@@ -115,7 +119,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
       // 构造收银台 URL。定金模式下强制传 price=1.00 和 type=booking 参数
       let targetUrl = `${window.location.origin}${window.location.pathname}?page=payment-confirm&walletId=${walletId}&staffId=${staff?.id}`;
       if (isBookingLaunch) {
-        targetUrl += `&price=1.00&type=booking`;
+        targetUrl += `&price=${bookingPaymentAmount}&type=booking`;
       } else {
         const price = detailData?.price || staff?.price || 1;
         targetUrl += `&price=${price}`;
@@ -133,21 +137,79 @@ export const StaffDetail: FC<StaffDetailProps> = ({
     }
   };
 
+  const connectCurrentBrowserWallet = async () => {
+    if (browserWalletConnecting) return;
+    setBrowserWalletConnecting(true);
+    setBrowserWalletError(null);
+
+    try {
+      const { walletId } = await connectInjectedTronWallet();
+      let returnUrl = buildPaymentReturnUrl();
+      if (isBookingLaunch) {
+        returnUrl = returnUrl.includes('?')
+          ? `${returnUrl}&type=booking`
+          : `${returnUrl}?type=booking`;
+      }
+
+      let targetUrl = `${window.location.origin}${window.location.pathname}?page=payment-confirm&walletId=${walletId}&staffId=${staff?.id}`;
+      if (isBookingLaunch) {
+        targetUrl += `&price=${bookingPaymentAmount}&type=booking`;
+      } else {
+        const price = detailData?.price || staff?.price || 1;
+        targetUrl += `&price=${price}`;
+      }
+      targetUrl += `&returnUrl=${encodeURIComponent(returnUrl)}`;
+      window.location.href = targetUrl;
+    } catch (err: any) {
+      setBrowserWalletError(err?.message || 'Unable to connect the browser wallet.');
+    } finally {
+      setBrowserWalletConnecting(false);
+    }
+  };
+
+  const openBrowserPayment = () => {
+    let targetUrl = `${window.location.origin}${window.location.pathname}?page=payment-confirm&walletId=tokenpocket&staffId=${staff?.id}`;
+    if (isBookingLaunch) {
+      targetUrl += `&price=${bookingPaymentAmount}&type=booking`;
+    } else {
+      const price = detailData?.price || staff?.price || 1;
+      targetUrl += `&price=${price}`;
+    }
+
+    let returnUrl = buildPaymentReturnUrl();
+    if (isBookingLaunch) {
+      returnUrl = returnUrl.includes('?')
+        ? `${returnUrl}&type=booking`
+        : `${returnUrl}?type=booking`;
+    }
+    targetUrl += `&returnUrl=${encodeURIComponent(returnUrl)}`;
+    window.location.href = targetUrl;
+  };
+
   // Direct local Tron pay trigger: redirects to confirmation view if inside wallet browser
   // 本地波场支付入口：如果在钱包内置浏览器中则直接跳转确认付款，否则展示钱包列表
-  const triggerLocalTronPay = async (isBookingPayment = false) => {
+  const triggerLocalTronPay = async (isBookingPayment = false, amount = 1) => {
     setIsBookingLaunch(isBookingPayment);
+    if (isBookingPayment) setBookingPaymentAmount(amount.toFixed(2));
     
     // Check if running inside a Web3 wallet built-in browser environment
     // 检查当前是否处于注入了波场 Web3 实例的钱包浏览器环境内
     if (isInjectedWalletBrowser()) {
-      let url = `${window.location.origin}${window.location.pathname}?page=payment-confirm&walletId=tokenpocket&staffId=${staff?.id}`;
-      if (isBookingPayment) {
-        url += `&price=1.00&type=booking`;
+      const walletId = detectInjectedWalletId() || 'tokenpocket';
+      let url = `${window.location.origin}${window.location.pathname}?page=payment-confirm&walletId=${walletId}&staffId=${staff?.id}`;
+        if (isBookingPayment) {
+          url += `&price=${amount.toFixed(2)}&type=booking`;
       } else {
         const price = detailData?.price || staff?.price || 1;
         url += `&price=${price}`;
       }
+      let returnUrl = buildPaymentReturnUrl();
+      if (isBookingPayment) {
+        returnUrl = returnUrl.includes('?')
+          ? `${returnUrl}&type=booking`
+          : `${returnUrl}?type=booking`;
+      }
+      url += `&returnUrl=${encodeURIComponent(returnUrl)}`;
       window.location.href = url;
       return;
     }
@@ -321,6 +383,17 @@ export const StaffDetail: FC<StaffDetailProps> = ({
     } catch {
       alert(`Profile link: ${url}`);
     }
+  };
+
+  const handleBookingPayment = (details: BookingDetails, amount: number) => {
+    localStorage.setItem('meet_booking_details', JSON.stringify({
+      ...details,
+      staffId: profile.id,
+      staffName: profile.name,
+      amount: amount.toFixed(2)
+    }));
+    setShowRequestFlow(false);
+    triggerLocalTronPay(true, amount);
   };
 
   return (
@@ -535,11 +608,31 @@ export const StaffDetail: FC<StaffDetailProps> = ({
             {/* 头部图标与说明 */}
             <Lock className="w-12 h-12 text-primary mx-auto mb-4 animate-bounce" />
             <h4 className="text-xl md:text-2xl font-extrabold mb-2 tracking-tight text-white">
-              Unlock Contact Number
+              {isBookingLaunch ? 'Pay booking request' : 'Unlock contact number'}
             </h4>
             <p className="text-zinc-400 text-xs md:text-sm mb-6 leading-relaxed">
-              Launch a Web3 Tron wallet to open this page. Once inside, tap 'Unlock' to sign the USDT authorization.
+              Choose a wallet connection method. You can connect a wallet in this browser, open a wallet app, or continue with a QR code.
             </p>
+
+            <button
+              type="button"
+              onClick={connectCurrentBrowserWallet}
+              disabled={browserWalletConnecting}
+              className="mb-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/50 bg-primary/10 px-4 py-3 text-sm font-bold text-primary transition hover:bg-primary/20 disabled:cursor-wait disabled:opacity-60"
+            >
+              <MonitorSmartphone className="h-5 w-5" />
+              {browserWalletConnecting ? 'Connecting browser wallet...' : 'Connect current browser wallet'}
+            </button>
+            {browserWalletError ? <p className="mb-4 rounded-xl border border-red-900/40 bg-red-950/30 px-3 py-2 text-xs font-semibold text-red-300">{browserWalletError}</p> : null}
+
+            <button
+              type="button"
+              onClick={openBrowserPayment}
+              className="mb-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-bold text-zinc-200 transition hover:border-primary/60 hover:text-white"
+            >
+              <QrCode className="h-5 w-5 text-primary" />
+              Continue with QR code or copy address
+            </button>
             
             {/* Wallet Selection Grid */}
             {/* 钱包网格按钮组 */}
@@ -550,9 +643,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 onClick={() => handleWalletLaunch('tokenpocket')}
                 className="flex flex-col items-center p-4 bg-zinc-900/50 hover:bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-primary/50 transition-all duration-200 cursor-pointer"
               >
-                <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-blue-600 font-extrabold text-white text-lg shadow-md mb-2">
-                  TP
-                </div>
+                <WalletBrandIcon walletId="tokenpocket" />
                 <span className="text-xs font-bold text-zinc-200">TokenPocket</span>
               </button>
 
@@ -562,9 +653,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 onClick={() => handleWalletLaunch('tronlink')}
                 className="flex flex-col items-center p-4 bg-zinc-900/50 hover:bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-primary/50 transition-all duration-200 cursor-pointer"
               >
-                <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-zinc-950 text-red-500 border border-red-500/30 font-extrabold text-lg shadow-md mb-2">
-                  TL
-                </div>
+                <WalletBrandIcon walletId="tronlink" />
                 <span className="text-xs font-bold text-zinc-200">TronLink</span>
               </button>
 
@@ -574,9 +663,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 onClick={() => handleWalletLaunch('imtoken')}
                 className="flex flex-col items-center p-4 bg-zinc-900/50 hover:bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-primary/50 transition-all duration-200 cursor-pointer"
               >
-                <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-cyan-600 font-extrabold text-white text-lg shadow-md mb-2">
-                  IM
-                </div>
+                <WalletBrandIcon walletId="imtoken" />
                 <span className="text-xs font-bold text-zinc-200">imToken</span>
               </button>
 
@@ -586,27 +673,22 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 onClick={() => handleWalletLaunch('bitkeep')}
                 className="flex flex-col items-center p-4 bg-zinc-900/50 hover:bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-primary/50 transition-all duration-200 cursor-pointer"
               >
-                <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-gradient-to-tr from-purple-600 to-orange-500 font-extrabold text-white text-lg shadow-md mb-2">
-                  BK
-                </div>
-                <span className="text-xs font-bold text-zinc-200">BitKeep</span>
+                <WalletBrandIcon walletId="bitkeep" />
+                <span className="text-xs font-bold text-zinc-200">Bitget Wallet</span>
+              </button>
+
+              {/* OKX Wallet launcher */}
+              <button
+                onClick={() => handleWalletLaunch('okx')}
+                className="flex flex-col items-center p-4 bg-zinc-900/50 hover:bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-primary/50 transition-all duration-200 cursor-pointer"
+              >
+                <WalletBrandIcon walletId="okx" />
+                <span className="text-xs font-bold text-zinc-200">OKX Wallet</span>
               </button>
             </div>
 
             {/* Manual Clipboard Helper link */}
             {/* 手动复制链接块 */}
-            <div className="mt-4 pt-4 border-t border-zinc-900 flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  const dappUrl = `${window.location.origin}${window.location.pathname}?staffId=${staff.id}`;
-                  navigator.clipboard.writeText(dappUrl);
-                  alert('DApp link copied to clipboard! Paste it inside your wallet browser.');
-                }}
-                className="text-xs text-primary hover:text-primary-hover font-semibold transition-colors cursor-pointer bg-transparent border-none py-1"
-              >
-                Copy DApp URL to Clipboard
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -752,11 +834,35 @@ export const StaffDetail: FC<StaffDetailProps> = ({
         <BookingRequestFlow
           staff={detailData}
           onClose={() => setShowRequestFlow(false)}
+          onProceedToPayment={handleBookingPayment}
         />
       )}
     </div>
   );
 };
+
+type WalletBrandId = 'tokenpocket' | 'tronlink' | 'imtoken' | 'bitkeep' | 'okx';
+
+const walletBrandIconUrls: Record<WalletBrandId, string> = {
+  tokenpocket: '/wallets/tokenpocket.svg',
+  tronlink: '/wallets/tronlink.ico',
+  imtoken: '/wallets/imtoken.svg',
+  bitkeep: '/wallets/bitget.svg',
+  okx: '/wallets/okx.svg'
+};
+
+const WalletBrandIcon: FC<{ walletId: WalletBrandId }> = ({ walletId }) => (
+  <span className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-white p-2 shadow-md">
+    <img
+      src={walletBrandIconUrls[walletId]}
+      alt=""
+      aria-hidden="true"
+      className="h-full w-full object-contain"
+      loading="eager"
+      referrerPolicy="no-referrer"
+    />
+  </span>
+);
 
 const ProfileItem: FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="min-w-0">

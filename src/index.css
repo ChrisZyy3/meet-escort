@@ -1484,6 +1484,12 @@ select:focus-visible {
 
 @layer components {
   .field {
-    @apply block w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-medium text-neutral-medium outline-none transition focus:border-primary focus:ring-1 focus:ring-primary;
+    @apply block w-full max-w-full min-w-0 rounded-xl border border-gray-200 bg-white px-4 py-3 font-medium text-neutral-medium outline-none transition focus:border-primary focus:ring-1 focus:ring-primary;
+  }
+
+  input[type='date'].field,
+  input[type='time'].field {
+    min-width: 0;
+    max-width: 100%;
   }
 }

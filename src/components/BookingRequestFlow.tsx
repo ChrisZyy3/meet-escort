@@ -10,6 +10,22 @@ type ContactMethod = 'Phone' | 'LINE' | 'WhatsApp' | 'Telegram';
 interface BookingRequestFlowProps {
   staff: Staff;
   onClose: () => void;
+  onProceedToPayment: (details: BookingDetails, amount: number) => void;
+}
+
+export interface BookingDetails {
+  serviceMode: ServiceMode;
+  date: string;
+  time: string;
+  duration: number;
+  name: string;
+  email: string;
+  phone: string;
+  contactMethod: ContactMethod;
+  hotel: string;
+  room: string;
+  specialRequests: string;
+  addDinner: boolean;
 }
 
 const dateForInput = (date: Date) => {
@@ -19,7 +35,7 @@ const dateForInput = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose }) => {
+export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose, onProceedToPayment }) => {
   const [step, setStep] = useState<Step>('schedule');
   const [serviceMode, setServiceMode] = useState<ServiceMode>('On-call');
   const [date, setDate] = useState(() => dateForInput(new Date()));
@@ -56,7 +72,20 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
 
   const submit = () => {
     if (!canSubmit) return;
-    setStep('complete');
+    onProceedToPayment({
+      serviceMode,
+      date,
+      time,
+      duration,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      contactMethod,
+      hotel: hotel.trim(),
+      room: room.trim(),
+      specialRequests: specialRequests.trim(),
+      addDinner
+    }, total);
   };
 
   return (
@@ -68,7 +97,7 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
           </button>
           <div className="text-center">
             <p className="text-sm font-extrabold text-neutral-dark">Send request to {staff.name}</p>
-            {step !== 'complete' && <p className="text-xs text-neutral-light">Mock booking — no data is sent</p>}
+            {step !== 'complete' && <p className="text-xs text-neutral-light">Your request will continue to payment</p>}
           </div>
           <button onClick={onClose} aria-label="Close booking request" className="rounded-full p-2 text-neutral-light hover:bg-neutral-bgLight hover:text-neutral-dark"><X className="h-5 w-5" /></button>
         </header>
@@ -93,9 +122,9 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
               <div className="grid gap-3 sm:grid-cols-2">
                 {(['On-call', 'In-call'] as ServiceMode[]).map((mode) => <Choice key={mode} title={mode} subtitle={mode === 'On-call' ? 'Meet at your selected location' : 'Meet at the profile location'} selected={serviceMode === mode} onClick={() => setServiceMode(mode)} />)}
               </div>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <Field label="Date"><input type="date" min={minDate} value={date} onChange={(event) => setDate(event.target.value)} className="field" /></Field>
-                <Field label="Time"><input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="field" /></Field>
+              <div className="mt-5 grid min-w-0 gap-4 sm:grid-cols-2 [&>label]:min-w-0">
+                <Field label="Date" className="min-w-0"><input type="date" min={minDate} value={date} onChange={(event) => setDate(event.target.value)} className="field" /></Field>
+                <Field label="Time" className="min-w-0"><input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="field" /></Field>
               </div>
               <Field label="Duration" className="mt-5"><select value={duration} onChange={(event) => setDuration(Number(event.target.value))} className="field"><option value={1}>1 hour</option><option value={2}>2 hours</option><option value={3}>3 hours</option><option value={4}>4 hours</option></select></Field>
               <Continue disabled={!canContinueSchedule} onClick={() => setStep('contact')} />
@@ -136,7 +165,7 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
             <div className="py-10 text-center">
               <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600"><Check className="h-8 w-8" /></span>
               <h2 className="mt-6 text-3xl font-extrabold text-neutral-dark">Request ready</h2>
-              <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-light">This is a front-end mock confirmation. Your request for {staff.name} has not been sent and no payment has been taken.</p>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-light">Your request for {staff.name} is ready. Continue to payment to submit the booking deposit.</p>
               <div className="mx-auto mt-6 max-w-sm rounded-2xl bg-neutral-bgLight p-4 text-sm font-semibold text-neutral-medium">{summary}<br />{hotel}, room {room}</div>
               <button onClick={onClose} className="mt-7 rounded-full bg-primary px-7 py-3 font-bold text-white hover:bg-primary-hover">Back to profile</button>
             </div>
