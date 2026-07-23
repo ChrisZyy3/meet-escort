@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This React 19, TypeScript, and Vite application keeps code in `src/`: `components/` contains page sections and dialogs, `services/` contains API and TRON payment integrations, and `utils/` contains supporting JSON data. Shared models and fallback content are in `src/types.ts` and `src/mockData.ts`. Static files served unchanged belong in `public/`; imported images belong in `src/assets/`. `home_files/` and `home.html` are legacy/reference assets; avoid editing them unless the task concerns the captured source page. `dist/` and `node_modules/` are generated and must not be committed.
+This React 19, TypeScript, and Vite application keeps code in `src/`: `components/` contains page sections and dialogs, `services/` contains API and TRON payment integrations, and `utils/` contains supporting JSON data. Shared models are in `src/types.ts`, while live API mapping and requests are in `src/services/api.ts`. Static files served unchanged belong in `public/`; imported images belong in `src/assets/`. `home_files/` and `home.html` are legacy/reference assets; avoid editing them unless the task concerns the captured source page. `dist/` and `node_modules/` are generated and must not be committed.
 
 ## Build, Test, and Development Commands
 

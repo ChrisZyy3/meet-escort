@@ -68,7 +68,7 @@ export function resolveMediaUrl(path: string | undefined | null, baseUrl: string
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
     return trimmed;
   }
-  // Local mock assets stay on the frontend origin
+  // Legacy site assets stay on the frontend origin.
   if (trimmed.startsWith('/home_files')) return trimmed;
   const base = baseUrl.replace(/\/$/, '');
   return trimmed.startsWith('/') ? `${base}${trimmed}` : `${base}/${trimmed}`;
@@ -124,11 +124,10 @@ export function normalizeStaff(raw: StaffApiPayload): Staff {
   const bodyType = raw.bodyType?.trim() || undefined;
   const preferences = raw.preferences?.trim() || undefined;
 
-  // Prefer API bio fields; synthesize a short description when missing
+  // Keep profile copy sourced from the API. Location is rendered separately by the UI.
   const description =
     raw.description?.trim() ||
-    raw.details?.trim() ||
-    (location ? `Available in ${location}.` : undefined);
+    raw.details?.trim();
 
   return {
     id: raw.id,
@@ -151,47 +150,6 @@ export function normalizeStaff(raw: StaffApiPayload): Staff {
     description,
     details: raw.details,
     phone: raw.phone,
-  };
-}
-
-/**
- * Merge live API staff with matching local mock metadata.
- * API values win; mock fills gaps (verified, response time, richer bio, etc.).
- */
-export function mergeStaffWithFallback(apiItem: Staff, fallback?: Staff): Staff {
-  if (!fallback) return apiItem;
-
-  const photoUrls =
-    apiItem.photoUrls.length > 0
-      ? apiItem.photoUrls
-      : fallback.photoUrls?.length
-        ? fallback.photoUrls
-        : fallback.photoUrl
-          ? [fallback.photoUrl]
-          : [];
-
-  return {
-    ...fallback,
-    ...apiItem,
-    photoUrl: photoUrls[0] ?? apiItem.photoUrl ?? fallback.photoUrl ?? '',
-    photoUrls,
-    location: apiItem.location || fallback.location,
-    city: apiItem.city || fallback.city,
-    country: apiItem.country || fallback.country,
-    languages: apiItem.languages?.length ? apiItem.languages : fallback.languages,
-    description: apiItem.description || fallback.description,
-    details: apiItem.details || fallback.details,
-    height: apiItem.height ?? fallback.height,
-    size: apiItem.size || fallback.size,
-    bodyType: apiItem.bodyType || fallback.bodyType,
-    preferences: apiItem.preferences || fallback.preferences,
-    age: apiItem.age ?? fallback.age,
-    rating: apiItem.rating ?? fallback.rating,
-    // Keep presentation-only mock enrichments when API omits them
-    reviewCount: apiItem.reviewCount ?? fallback.reviewCount,
-    verified: apiItem.verified ?? fallback.verified,
-    responseMinutes: apiItem.responseMinutes ?? fallback.responseMinutes,
-    phone: apiItem.phone || fallback.phone,
   };
 }
 

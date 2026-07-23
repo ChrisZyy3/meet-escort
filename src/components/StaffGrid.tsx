@@ -7,6 +7,7 @@ interface StaffGridProps {
   staffList: Staff[];
   onStaffClick: (staff: Staff) => void;
   isLoading?: boolean;
+  errorMessage?: string | null;
   baseUrl?: string;
   criteria?: SearchCriteria;
   resultsMode?: boolean;
@@ -19,6 +20,7 @@ export function StaffGrid({
   staffList,
   onStaffClick,
   isLoading = false,
+  errorMessage = null,
   baseUrl = '',
   criteria,
   resultsMode = false,
@@ -68,8 +70,8 @@ export function StaffGrid({
         <div className="directory-section__heading">
           <div>
             <p className="section-kicker"><Users aria-hidden="true" /> Live directory</p>
-            <h2>{resultsMode ? `Available in ${criteria?.city ?? 'your area'}` : 'Companions currently online'}</h2>
-            <p>{resultsMode ? `${visibleStaff.length} profiles match your request` : 'Verified profiles with recent activity and quick response times.'}</p>
+            <h2>{resultsMode ? `Available in ${criteria?.city ?? 'your area'}` : 'Companion directory'}</h2>
+            <p>{resultsMode ? `${visibleStaff.length} profiles match your request` : 'Profiles and availability from the live API.'}</p>
           </div>
           <div className="directory-controls">
             {onShowFavorites && <button type="button" onClick={onShowFavorites} className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-neutral-dark transition hover:border-primary hover:text-primary"><Heart className={`h-4 w-4 ${favoriteIds.size ? 'fill-primary text-primary' : ''}`} /> Favorites ({favoriteIds.size})</button>}
@@ -98,6 +100,12 @@ export function StaffGrid({
         {isLoading ? (
           <div className="staff-grid" aria-label="Loading profiles">
             {Array.from({ length: 8 }, (_, index) => <div key={index} className="staff-card-skeleton" />)}
+          </div>
+        ) : errorMessage ? (
+          <div className="directory-empty" role="alert">
+            <Users aria-hidden="true" />
+            <h3>Profiles are temporarily unavailable</h3>
+            <p>{errorMessage}</p>
           </div>
         ) : visibleStaff.length ? (
           <div className="staff-grid">

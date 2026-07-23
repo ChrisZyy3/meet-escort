@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react';
-import type { FC } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import type { CSSProperties, FC, UIEvent } from 'react';
 import type { Staff, StaffComment } from '../types';
 // Import Lock, Unlock, and Phone icons for high-quality Web3 payment visual indicators
 // 导入锁具与电话图标，提供高品质 Web3 支付状态反馈
-import { CalendarDays, Heart, Languages, Lock, MonitorSmartphone, QrCode, Ruler, Share2, Star, Unlock } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Heart, Languages, Lock, MonitorSmartphone, QrCode, Ruler, Share2, Star, Unlock, X } from 'lucide-react';
 // Import payment service integration helpers
 // 导入 Web3 支付工具函数进行流程管理与钱包唤起
 import { connectInjectedTronWallet, detectInjectedWalletId, isInjectedWalletBrowser, buildPaymentReturnUrl, WALLET_META } from '../services/tron-pay';
 import { BookingRequestFlow } from './BookingRequestFlow';
 import type { BookingDetails } from './BookingRequestFlow';
-import { mockStaffSearchMeta } from '../mockData';
-import { fetchStaffComments, mergeStaffWithFallback, resolveMediaUrl } from '../services/api';
+import { fetchStaffComments, resolveMediaUrl } from '../services/api';
 
 interface StaffDetailProps {
   staff: Staff | null;
@@ -21,15 +20,7 @@ interface StaffDetailProps {
   onToggleFavorite?: (id: number) => void;
 }
 
-/** Local gallery fillers only used when a profile has fewer than 2 real photos. */
-const galleryPool = [
-  '/home_files/andreana-17822594432826.jpg',
-  '/home_files/bailey-17821383254401.jpg',
-  '/home_files/mae-17821925043330.jpg',
-  '/home_files/nina-15812396855097.jpg',
-  '/home_files/rose-in-thailand-16503764477841.jpg',
-  '/home_files/rio-nanase-17229186235364.jpg'
-];
+const galleryCollapseDistance = 160;
 
 /**
  * StaffDetail Component
@@ -69,6 +60,10 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
   const [showRequestFlow, setShowRequestFlow] = useState<boolean>(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [showPhotoLightbox, setShowPhotoLightbox] = useState(false);
+  const [zoomWideGalleryPhoto, setZoomWideGalleryPhoto] = useState(false);
+  const [galleryScrollProgress, setGalleryScrollProgress] = useState(0);
+  const galleryScrollFrame = useRef<number | null>(null);
   const [comments, setComments] = useState<StaffComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -301,7 +296,6 @@ export const StaffDetail: FC<StaffDetailProps> = ({
     // 当选择的服务人员改变时，重置状态
     setDetailData(staff);
     setError(null);
-    setActivePhotoIndex(0);
 
     if (staff && fetchDetailApi) {
       // Async detail fetch for Phase 2 API integration
@@ -309,16 +303,22 @@ export const StaffDetail: FC<StaffDetailProps> = ({
       setLoading(true);
       fetchDetailApi(staff.id)
         .then((data) => {
-          setDetailData(mergeStaffWithFallback(data, staff));
+          setDetailData(data);
           setLoading(false);
         })
         .catch((err) => {
           console.error("Error fetching staff detail:", err);
-          setError("Failed to load details. Showing cached info.");
+          setError('Failed to load profile details. Showing list data.');
           setLoading(false);
         });
     }
   }, [staff, fetchDetailApi]);
+
+  useEffect(() => {
+    setActivePhotoIndex(0);
+    setShowPhotoLightbox(false);
+    setGalleryScrollProgress(0);
+  }, [staff?.id]);
 
   useEffect(() => {
     if (!staff) return;
@@ -344,26 +344,32 @@ export const StaffDetail: FC<StaffDetailProps> = ({
     };
   }, [staff]);
 
+  useEffect(() => {
+    if (!showPhotoLightbox) return;
+
+    const handleLightboxKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowPhotoLightbox(false);
+    };
+
+    window.addEventListener('keydown', handleLightboxKeyDown);
+    return () => window.removeEventListener('keydown', handleLightboxKeyDown);
+  }, [showPhotoLightbox]);
+
+  useEffect(() => () => {
+    if (galleryScrollFrame.current !== null) {
+      cancelAnimationFrame(galleryScrollFrame.current);
+    }
+  }, []);
+
   if (!staff) return null;
 
   const profile = detailData || staff;
-  // Prefer real API photoUrls; only pad with local mock fillers when the profile has a single/no photo
+  // Only render photos returned by the API. Profiles without photos use the explicit empty state below.
   const apiPhotos = (profile.photoUrls?.length ? profile.photoUrls : profile.photoUrl ? [profile.photoUrl] : [])
     .filter(Boolean);
-  const galleryPhotos = (
-    apiPhotos.length >= 2
-      ? apiPhotos
-      : [
-          ...apiPhotos,
-          ...galleryPool.slice(staff.id % galleryPool.length),
-          ...galleryPool.slice(0, staff.id % galleryPool.length),
-        ]
-  )
-    .filter((photo, index, all): photo is string => Boolean(photo) && all.indexOf(photo) === index)
-    .slice(0, 6);
+  const galleryPhotos = apiPhotos.filter((photo, index, all): photo is string => all.indexOf(photo) === index).slice(0, 6);
   const activePhoto = galleryPhotos[activePhotoIndex] || profile.photoUrl || '';
   const resolvedPhoto = resolveMediaUrl(activePhoto, baseUrl);
-  const profileMeta = mockStaffSearchMeta[staff.id];
   const directContactEnabled = import.meta.env.VITE_ENABLE_DIRECT_CONTACT === 'true';
   const rating = profile.rating && profile.rating > 0 ? profile.rating.toFixed(1) : 'New';
   const reviewCount = profile.reviewCount ?? comments.length;
@@ -372,7 +378,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   const languagesLabel = profile.languages?.length
     ? profile.languages.join(' · ')
     : undefined;
-  const cityLabel = profile.city || profile.location || profileMeta?.city || 'Available on request';
+  const cityLabel = profile.city || profile.location || 'Not provided';
   const countryLabel = profile.country;
 
   const handleShare = async () => {
@@ -396,16 +402,57 @@ export const StaffDetail: FC<StaffDetailProps> = ({
     triggerLocalTronPay(true, amount);
   };
 
+  const showPreviousPhoto = () => {
+    setActivePhotoIndex((current) => (current - 1 + galleryPhotos.length) % galleryPhotos.length);
+  };
+
+  const showNextPhoto = () => {
+    setActivePhotoIndex((current) => (current + 1) % galleryPhotos.length);
+  };
+
+  const handleProfileScroll = (event: UIEvent<HTMLDivElement>) => {
+    const progress = Math.min(event.currentTarget.scrollTop / galleryCollapseDistance, 1);
+    if (galleryScrollFrame.current !== null) {
+      cancelAnimationFrame(galleryScrollFrame.current);
+    }
+    galleryScrollFrame.current = requestAnimationFrame(() => {
+      setGalleryScrollProgress(progress);
+      galleryScrollFrame.current = null;
+    });
+  };
+
+  const expandedGalleryHeight = typeof window === 'undefined'
+    ? 460
+    : Math.min(Math.max(window.innerHeight * 0.56, 300), 520);
+  const collapsedGalleryHeight = expandedGalleryHeight - galleryCollapseDistance;
+  const galleryHeight = expandedGalleryHeight - ((expandedGalleryHeight - collapsedGalleryHeight) * galleryScrollProgress);
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div className="profile-detail-overlay fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div 
-        className="relative bg-white dark:bg-zinc-900 rounded-3xl overflow-hidden w-full max-w-4xl shadow-2xl border border-gray-100 dark:border-zinc-800 animate-slide-up"
+        className="profile-detail-modal relative bg-white dark:bg-zinc-900 rounded-3xl overflow-hidden w-full max-w-4xl shadow-2xl border border-gray-100 dark:border-zinc-800 animate-slide-up"
+        onScroll={handleProfileScroll}
+        style={{
+          '--gallery-expanded-height': `${expandedGalleryHeight}px`,
+          '--gallery-height': `${galleryHeight}px`
+        } as CSSProperties}
         onClick={(e) => e.stopPropagation()} // Stop click propagation to background overlay
       >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Back to directory"
+          title="Back to directory"
+          className="profile-detail-back absolute left-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur transition hover:bg-black/70"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+
         {/* Close Button overlay */}
         {/* 关闭按钮 */}
         <button 
           onClick={onClose}
+          aria-label="Close profile details"
           className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white text-2xl font-bold cursor-pointer transition-colors duration-200"
           title="Close details"
         >
@@ -414,23 +461,38 @@ export const StaffDetail: FC<StaffDetailProps> = ({
 
         {/* Modal Layout */}
         {/* 弹窗内容排版 */}
-        <div className="flex flex-col md:flex-row min-h-[500px]">
+        <div className="profile-detail-layout flex flex-col md:flex-row min-h-[500px]">
           {/* Photo Column */}
           {/* 图片列 */}
-          <div className="w-full md:w-1/2 bg-neutral-bgLight relative aspect-square md:aspect-auto">
-            {resolvedPhoto ? (
-              <img 
-                src={resolvedPhoto} 
-                alt={`${staff.name} profile`} 
-                className="w-full h-full object-cover transition-opacity duration-300"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col justify-center items-center bg-primary/5 text-primary text-4xl font-extrabold">
-                {staff.name.charAt(0).toUpperCase()}
-                <span className="text-sm font-semibold text-neutral-light mt-2">No Photo</span>
-              </div>
-            )}
-            <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
+          <div className="profile-detail-gallery w-full md:w-auto bg-neutral-bgLight relative aspect-square md:aspect-auto">
+            <div className="profile-detail-gallery__viewport">
+              {resolvedPhoto ? (
+                <img
+                  src={resolvedPhoto}
+                  alt={`${staff.name} profile`}
+                  className={`profile-detail-gallery__image cursor-zoom-in transition-opacity duration-300 ${zoomWideGalleryPhoto ? 'profile-detail-gallery__image--zoomed' : ''}`}
+                  onLoad={(event) => {
+                    setZoomWideGalleryPhoto(event.currentTarget.naturalWidth > event.currentTarget.naturalHeight * 1.15);
+                  }}
+                  onClick={() => setShowPhotoLightbox(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setShowPhotoLightbox(true);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Open photo fullscreen preview"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col justify-center items-center bg-primary/5 text-primary text-4xl font-extrabold">
+                  {staff.name.charAt(0).toUpperCase()}
+                  <span className="text-sm font-semibold text-neutral-light mt-2">No Photo</span>
+                </div>
+              )}
+            </div>
+            <div className="absolute left-20 right-20 top-4 flex items-center justify-between">
               <button
                 onClick={() => onToggleFavorite?.(staff.id)}
                 aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -442,12 +504,34 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <Share2 className="h-5 w-5" />
               </button>
             </div>
+
             {galleryPhotos.length > 1 && (
-              <div className="absolute bottom-4 left-4 right-4 flex gap-2 overflow-x-auto pb-1">
+              <>
+                <button type="button" onClick={showPreviousPhoto} aria-label="Previous photo" className="profile-detail-gallery__nav profile-detail-gallery__nav--previous">
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button type="button" onClick={showNextPhoto} aria-label="Next photo" className="profile-detail-gallery__nav profile-detail-gallery__nav--next">
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+                <span className="profile-detail-gallery__counter">{activePhotoIndex + 1} / {galleryPhotos.length}</span>
+              </>
+            )}
+
+            <div className="profile-detail-gallery__caption">
+              <div>
+                <span className="profile-detail-gallery__status"><span />{profile.isActive ? 'Online now' : 'Offline'}</span>
+                <h1>{profile.name}{profile.age ? `, ${profile.age}` : ''}</h1>
+                <p>{cityLabel}{countryLabel ? `, ${countryLabel}` : ''}</p>
+              </div>
+              <strong>{profile.price ? `$${profile.price.toFixed(2)}` : 'Price on request'}<small>{profile.price ? ' / hr' : ''}</small></strong>
+            </div>
+
+            {galleryPhotos.length > 1 && (
+              <div className="profile-detail-gallery__thumbs absolute bottom-4 left-4 right-4 flex gap-2 overflow-x-auto pb-1">
                 {galleryPhotos.map((photo, index) => {
                   const thumbnail = resolveMediaUrl(photo, baseUrl);
                   return (
-                    <button key={`${photo}-${index}`} onClick={() => setActivePhotoIndex(index)} className={`h-14 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${activePhotoIndex === index ? 'border-primary' : 'border-white/80 opacity-75 hover:opacity-100'}`}>
+                    <button type="button" key={`${photo}-${index}`} onClick={() => setActivePhotoIndex(index)} aria-label={`Show photo ${index + 1}`} className={`profile-detail-gallery__thumb h-14 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${activePhotoIndex === index ? 'border-primary' : 'border-white/80 opacity-75 hover:opacity-100'}`}>
                       <img src={thumbnail} alt={`${staff.name} gallery ${index + 1}`} className="h-full w-full object-cover" />
                     </button>
                   );
@@ -458,11 +542,11 @@ export const StaffDetail: FC<StaffDetailProps> = ({
 
           {/* Details Column */}
           {/* 信息详情列 */}
-          <div className="w-full md:w-1/2 p-6 md:p-10 flex flex-col justify-between">
+          <div className="profile-detail-content w-full md:w-auto p-6 md:p-10 flex flex-col justify-between">
             <div>
               {/* Header tags: Status & Price */}
               {/* 头部状态与价格显示 */}
-              <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="hidden flex items-center justify-between gap-4 mb-4">
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse" />
                   Online Now
@@ -477,25 +561,28 @@ export const StaffDetail: FC<StaffDetailProps> = ({
 
               {/* Name header */}
               {/* 姓名 */}
-              <h3 className="text-2xl md:text-4xl font-extrabold text-neutral-dark dark:text-white mb-2">
+              <h3 className="hidden text-2xl md:text-4xl font-extrabold text-neutral-dark dark:text-white mb-2">
                 {profile.name}{profile.age ? `, ${profile.age}` : ''}
               </h3>
 
               {/* Description bio text */}
               {/* 简介 / 描述 */}
-              <p className="text-sm md:text-base text-neutral-medium dark:text-zinc-300 leading-relaxed mb-6 whitespace-pre-line min-h-[100px]">
+              <div className="mb-6">
+                <h3 className="mb-2 text-xs font-extrabold uppercase tracking-[0.16em] text-primary">About</h3>
+                <p className="profile-detail-content__bio text-sm md:text-base leading-relaxed whitespace-pre-line">
                 {loading
                   ? 'Loading details...'
-                  : (profile.details || profile.description || profile.preferences || 'Professional service provider.')}
-              </p>
+                  : (profile.details || profile.description || profile.preferences || 'No description provided.')}
+                </p>
+              </div>
 
               <div className="mb-6 grid grid-cols-2 gap-3 rounded-2xl bg-neutral-bgLight p-4 text-sm">
                 <ProfileItem label="City" value={cityLabel} />
-                {countryLabel ? <ProfileItem label="Country" value={countryLabel} /> : <ProfileItem label="Profile" value={profileMeta?.gender || 'Independent'} />}
-                <ProfileItem label="Availability" value={profile.isActive ? 'Online now' : 'Replies today'} />
-                <ProfileItem label="Services" value={profileMeta?.modes.join(' · ') || 'On request'} />
+                {countryLabel ? <ProfileItem label="Country" value={countryLabel} /> : <ProfileItem label="Country" value="Not provided" />}
+                <ProfileItem label="Availability" value={profile.isActive ? 'Online now' : 'Offline'} />
+                <ProfileItem label="Services" value="Not provided" />
                 {profile.createdAt && <ProfileItem label="Member since" value={new Date(profile.createdAt).toLocaleDateString()} />}
-                {profile.preferences ? <ProfileItem label="Preferences" value={profile.preferences} /> : <ProfileItem label="Response time" value={profile.responseMinutes ? `~${profile.responseMinutes} min` : 'Usually within 30 min'} />}
+                {profile.preferences ? <ProfileItem label="Preferences" value={profile.preferences} /> : <ProfileItem label="Response time" value="Not provided" />}
                 {profile.size ? <ProfileItem label="Measurements" value={profile.size} /> : null}
               </div>
 
@@ -586,6 +673,60 @@ export const StaffDetail: FC<StaffDetailProps> = ({
           </div>
         </div>
       </div>
+
+      {showPhotoLightbox && resolvedPhoto && (
+        <div
+          className="profile-photo-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${profile.name} photo preview`}
+          onClick={() => setShowPhotoLightbox(false)}
+        >
+          <button
+            type="button"
+            className="profile-photo-lightbox__close"
+            aria-label="Close photo preview"
+            onClick={() => setShowPhotoLightbox(false)}
+          >
+            <X className="h-6 w-6" />
+          </button>
+
+          {galleryPhotos.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="profile-photo-lightbox__nav profile-photo-lightbox__nav--previous"
+                aria-label="Previous preview photo"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  showPreviousPhoto();
+                }}
+              >
+                <ChevronLeft className="h-7 w-7" />
+              </button>
+              <button
+                type="button"
+                className="profile-photo-lightbox__nav profile-photo-lightbox__nav--next"
+                aria-label="Next preview photo"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  showNextPhoto();
+                }}
+              >
+                <ChevronRight className="h-7 w-7" />
+              </button>
+              <span className="profile-photo-lightbox__counter">{activePhotoIndex + 1} / {galleryPhotos.length}</span>
+            </>
+          )}
+
+          <img
+            src={resolvedPhoto}
+            alt={`${staff.name} fullscreen preview`}
+            className="profile-photo-lightbox__image"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
 
       {/* Wallet selector launcher popup overlay */}
       {/* Web3 钱包客户端呼叫启动模态弹窗 */}

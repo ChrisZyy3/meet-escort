@@ -132,7 +132,7 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
           )}
 
           {step === 'contact' && (
-            <Section icon={<UserRound />} title="How should the profile contact you?" description="These details remain in this browser for the mock flow only.">
+            <Section icon={<UserRound />} title="How should the profile contact you?" description="These details are included with your booking request.">
               <div className="space-y-4">
                 <Field label="Your name"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. John Doe" className="field" /></Field>
                 <Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="e.g. you@email.com" className="field" /></Field>
@@ -149,7 +149,7 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
                 <Field label="Hotel or condo"><input value={hotel} onChange={(event) => setHotel(event.target.value)} placeholder="Search or enter a hotel name" className="field" /></Field>
                 <Field label="Room number"><input value={room} onChange={(event) => setRoom(event.target.value)} placeholder="e.g. 147A" className="field" /></Field>
                 <Field label="Special requests"><textarea value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value)} placeholder="Optional notes for the request" rows={3} className="field resize-none" /></Field>
-                <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-gray-200 p-4 text-sm"><span><span className="block font-bold text-neutral-dark">Dinner arrangement</span><span className="mt-1 block text-xs text-neutral-light">Add mock coordination to this request</span></span><span className="flex items-center gap-3 font-bold text-primary">+ $50<input type="checkbox" checked={addDinner} onChange={(event) => setAddDinner(event.target.checked)} className="h-4 w-4 accent-primary" /></span></label>
+                <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-gray-200 p-4 text-sm"><span><span className="block font-bold text-neutral-dark">Dinner arrangement</span><span className="mt-1 block text-xs text-neutral-light">Add this preference to the request</span></span><span className="flex items-center gap-3 font-bold text-primary">+ $50<input type="checkbox" checked={addDinner} onChange={(event) => setAddDinner(event.target.checked)} className="h-4 w-4 accent-primary" /></span></label>
               </div>
               <div className="mt-6 rounded-2xl bg-neutral-bgLight p-5 text-sm">
                 <p className="font-bold text-neutral-dark">Request summary</p>

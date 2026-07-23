@@ -1,196 +1,113 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FC } from 'react';
 import QRCode from 'qrcode';
-import { 
-  Clock, 
-  Wallet, 
-  Cpu, 
-  AlertTriangle, 
-  ArrowLeft, 
-  CheckCircle, 
-  XCircle,
-  RefreshCw,
+import {
+  ArrowLeft,
+  CheckCircle,
   Copy,
   ExternalLink,
-  QrCode
+  LoaderCircle,
+  QrCode,
+  Wallet,
+  X,
+  XCircle,
 } from 'lucide-react';
 import type { Staff } from '../types';
+import { fetchSettings } from '../services/api';
 import {
   FEE_MODE,
-  MIN_TRX_PAY_GATE,
-  fetchWalletBalances,
-  payDirectUsdt,
-  validatePaymentReadiness,
-  t,
-  getUrlParam,
-  redirectAfterPaymentSuccess,
-  markOrderPaymentCompleted,
   WALLET_META,
-  isValidTronRecipientAddress
+  detectInjectedWalletId,
+  fetchWalletBalances,
+  getUrlParam,
+  isInjectedWalletBrowser,
+  isValidTronRecipientAddress,
+  markOrderPaymentCompleted,
+  payDirectUsdt,
+  redirectAfterPaymentSuccess,
+  t,
+  validatePaymentReadiness,
 } from '../services/tron-pay';
-import { fetchSettings } from '../services/api';
 
-// Props definition for the PaymentConfirm component
-// 支付确认页组件的属性接口声明
 interface PaymentConfirmProps {
   staffList: Staff[];
   onClose: () => void;
 }
 
-// 30 minutes countdown length in milliseconds
-// 30 分钟订单倒计时的毫秒长度
 const ORDER_DURATION_MS = 30 * 60 * 1000;
 
-/**
- * PaymentConfirm Component
- * 
- * Renders a full screen payment check-out view. Matches the look, feel and logic of video-web
- * but adapted with the premium hot pink visual branding of MeetEscort.
- */
+const walletName = (walletId: string) => WALLET_META[walletId]?.name || 'wallet';
+
+type WalletBrandId = 'tokenpocket' | 'tronlink' | 'imtoken' | 'bitkeep' | 'okx';
+
+const walletBrandIconUrls: Record<WalletBrandId, string> = {
+  tokenpocket: '/wallets/tokenpocket.svg',
+  tronlink: '/wallets/tronlink.ico',
+  imtoken: '/wallets/imtoken.svg',
+  bitkeep: '/wallets/bitget.svg',
+  okx: '/wallets/okx.svg',
+};
+
 export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) => {
-  // Expire timestamp for order
-  // 订单过期时间戳
-  const [expireAt] = useState<number>(() => Date.now() + ORDER_DURATION_MS);
-  
-  // Format string for timer countdown (e.g., "30:00")
-  // 倒计时显示文本状态
-  const [countdown, setCountdown] = useState<string>('30:00');
-  
-  // Select active fee mode (default is RESOURCE)
-  // 当前选择的矿工费扣除方式，默认“使用资源”
-  const [feeMode, setFeeMode] = useState<string>(FEE_MODE.RESOURCE);
-  
-  // Estimated miner fee TRX display value
-  // 预估消耗的 TRX 矿工费显示文本
-  const [minerFeeTrx, setMinerFeeTrx] = useState<string>('0.00');
-  
-  // Wallet account resources (Energy & Bandwidth)
-  // 钱包账户的可用能量和带宽资源数据
-  
-  // Wallet injection ready state
-  // 钱包环境就绪状态
-  const [walletReady, setWalletReady] = useState<boolean>(false);
-  
-  // Signature and transaction broadcasting loading state
-  // 交易签名广播中的加载状态
-  const [paying, setPaying] = useState<boolean>(false);
-  
-  // Pay complete tracking
-  // 支付完成标记
-  const [paymentCompleted, setPaymentCompleted] = useState<boolean>(false);
-  
-  // On-chain wallet balance data fetching state
-  // 链上数据拉取中指示器
-  const [loadingBalance, setLoadingBalance] = useState<boolean>(false);
-  
-  // Detailed feedback error messages
-  // 用户交互过程的错误反馈信息
+  const [expireAt] = useState(() => Date.now() + ORDER_DURATION_MS);
+  const [countdown, setCountdown] = useState('30:00');
+  const [selectedWalletId, setSelectedWalletId] = useState(() => getUrlParam('walletId') || 'tokenpocket');
+  const [tronReceiveAddress, setTronReceiveAddress] = useState('');
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+  const [addressCopied, setAddressCopied] = useState(false);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [payStage, setPayStage] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const autoPayStarted = useRef(false);
 
-  // Time tracker for balance refresh throttle
-  // 上次刷新余额的时间戳，用于限流防抖
-  const [lastBalanceRefreshAt, setLastBalanceRefreshAt] = useState<number>(0);
-
-  // Current payment step tracking description
-  // 支付多阶段执行的详情描述
-  const [payStage, setPayStage] = useState<string>('');
-
-  // Backend-configured TRON receive address from GET /api/settings (display only)
-  // 后台配置的 TRON 收款地址；支付合约仍使用 DEPOSIT_CONTRACT
-  const [tronReceiveAddress, setTronReceiveAddress] = useState<string>('');
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  const [addressCopied, setAddressCopied] = useState<boolean>(false);
-
-  // Local storage address details mapping
-  // 钱包余额及地址详情状态，加入 allowance 字段记录授权额度
-  const [wallet, setWallet] = useState<{
-    usdt: string;
-    trx: string;
-    address: string;
-    addressShort: string;
-    allowance: string;
-  }>({
-    usdt: '--',
-    trx: '--',
-    address: '',
-    addressShort: '--',
-    allowance: '0'
-  });
-
-  // Resolve return path from the URL parameters
-  // 解析回跳 URL 参数以备支付成功后返回
-  const paymentReturnUrl = useMemo(() => {
-    return getUrlParam('returnUrl') || window.location.origin + window.location.pathname;
-  }, []);
-
-  // Parse wallet identifier from the URL query
-  // 解析当前所选择的钱包类型（TronLink / TokenPocket 等）
-  const walletType = useMemo(() => {
-    const walletId = getUrlParam('walletId') || 'tokenpocket';
-    return {
-      id: walletId,
-      name: walletId === 'tronlink' ? 'TronLink' : 
-            walletId === 'tokenpocket' ? 'TokenPocket' :
-            walletId === 'imtoken' ? 'imToken' :
-            walletId === 'bitkeep' ? 'Bitget Wallet' :
-            walletId === 'okx' ? 'OKX Wallet' : 'TokenPocket'
-    };
-  }, []);
-
-  // Fetch staff companion price from listing details
-  // 获取当前对应的陪侍人员信息及单价，如找不到默认为 1.00 USDT
+  const paymentReturnUrl = useMemo(
+    () => getUrlParam('returnUrl') || `${window.location.origin}${window.location.pathname}`,
+    [],
+  );
   const selectedStaff = useMemo(() => {
-    const staffId = parseInt(getUrlParam('staffId') || '0', 10);
-    return staffList.find(s => s.id === staffId) || null;
+    const staffId = Number.parseInt(getUrlParam('staffId') || '0', 10);
+    return staffList.find((staff) => staff.id === staffId) || null;
   }, [staffList]);
-
-  // Check if current payment is for outcall booking deposit
-  // 检查当前交易类型是否为上门预约服务定金
-  const isBooking = useMemo(() => {
-    return getUrlParam('type') === 'booking';
-  }, []);
-
-  // Order total price display computed value (forces 1.00 USDT for booking deposit, hourly price for unlock)
-  // 订单应付的总额（预约定金模式下强制固定为 1.00 USDT，解锁电话模式下使用时薪）
+  const isBooking = useMemo(() => getUrlParam('type') === 'booking', []);
   const orderTotal = useMemo(() => {
     if (isBooking) return getUrlParam('price') || '1.00';
-    return selectedStaff?.price ? selectedStaff.price.toString() : (getUrlParam('price') || '1.00');
-  }, [selectedStaff, isBooking]);
+    return selectedStaff?.price ? String(selectedStaff.price) : getUrlParam('price') || '1.00';
+  }, [isBooking, selectedStaff]);
+  const displayAmount = Number.parseFloat(orderTotal);
 
-  // Load public payment settings (TRON address for display / QR)
   useEffect(() => {
     let active = true;
     fetchSettings()
       .then((settings) => {
         if (!active) return;
-        if (!isValidTronRecipientAddress(settings.tronAddress || '')) {
-          setErrorMessage('The configured TRON receiving address is invalid. Please use a normal wallet address, not a token contract address.');
-          setTronReceiveAddress('');
+        if (!isValidTronRecipientAddress(settings.tronAddress)) {
+          setErrorMessage('The configured TRON receiving address is invalid.');
           return;
         }
         setTronReceiveAddress(settings.tronAddress);
       })
       .catch(() => {
-        setErrorMessage('Unable to load the TRON receiving address. Please refresh and try again.');
+        if (active) setErrorMessage('Unable to load the TRON receiving address. Please refresh and try again.');
       });
+
     return () => {
       active = false;
     };
   }, []);
 
   useEffect(() => {
-    let active = true;
     if (!tronReceiveAddress) {
       setQrCodeDataUrl('');
-      return () => {
-        active = false;
-      };
+      return;
     }
 
+    let active = true;
     QRCode.toDataURL(tronReceiveAddress, {
-      width: 240,
+      width: 220,
       margin: 2,
-      errorCorrectionLevel: 'M'
+      errorCorrectionLevel: 'M',
     })
       .then((dataUrl) => {
         if (active) setQrCodeDataUrl(dataUrl);
@@ -204,220 +121,93 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
     };
   }, [tronReceiveAddress]);
 
-  // Run dynamic tick countdown
-  // 倒计时实时刷新定时器逻辑
   useEffect(() => {
     const updateCountdown = () => {
-      const left = Math.max(0, expireAt - Date.now());
-      const min = Math.floor(left / 60000);
-      const sec = Math.floor((left % 60000) / 1000);
-      setCountdown(`${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`);
-      
-      if (left <= 0) {
-        setErrorMessage(t('common.orderExpired'));
-        setTimeout(() => {
-          onClose();
-        }, 2000);
-      }
+      const remaining = Math.max(0, expireAt - Date.now());
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      setCountdown(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+      if (remaining === 0) setErrorMessage(t('common.orderExpired'));
     };
 
     updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [expireAt, onClose]);
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [expireAt]);
 
-  // Read wallet balances and estimate fee limit values
-  // 从区块链网络中拉取余额与资源指标，并做防抖节流
-  const refreshBalances = async (options: { force?: boolean; silent?: boolean } = {}) => {
-    if (loadingBalance && !options.force) return;
-
-    const now = Date.now();
-    const isRateLimitThrottled = walletType.id === 'imtoken' || walletType.id === 'bitkeep';
-    const refreshGap = isRateLimitThrottled ? 120000 : 30000;
-    
-    if (!options.force && walletReady && now - lastBalanceRefreshAt < refreshGap) {
-      return;
-    }
-
-    setLoadingBalance(true);
-    setErrorMessage(null);
-
-    try {
-      // Direct call to helper inside payment service
-      // 聚合调用服务接口，一次性获取地址余额、授权额度与矿工费估算
-      const balances = await fetchWalletBalances(walletType.id, feeMode, orderTotal, { directTransfer: true });
-      setWallet({
-        usdt: balances.usdt,
-        trx: balances.trx,
-        address: balances.address,
-        addressShort: balances.addressShort,
-        allowance: balances.allowance
-      });
-      if (balances.minerFee?.amount) {
-        setMinerFeeTrx(balances.minerFee.amount);
-      }
-      setWalletReady(true);
-      setLastBalanceRefreshAt(Date.now());
-    } catch (error: any) {
-      setWalletReady(false);
-      const msg = error?.message || String(error);
-      if (!options.silent) {
-        setErrorMessage(msg.includes('imToken_NO_TRONWEB') ? t('tronPay.imtokenNoTronweb') : msg);
-      }
-      console.error('Failed to load wallet balances', error);
-    } finally {
-      setLoadingBalance(false);
-    }
-  };
-
-  // Trigger initial balance fetch when component mounts
-  // 挂载时延时拉取，针对限流严重的钱包设置更长阻尼
-  useEffect(() => {
-    const isRateLimitThrottled = walletType.id === 'imtoken' || walletType.id === 'bitkeep';
-    const delay = isRateLimitThrottled ? 3500 : 800;
-    const timer = setTimeout(() => {
-      refreshBalances({ force: true });
-    }, delay);
-
-    // Auto polling refresh balance intervals
-    // 定时轮询器
-    const intervalTime = isRateLimitThrottled ? 120000 : 30000;
-    const interval = setInterval(() => {
-      refreshBalances({ silent: true });
-    }, intervalTime);
-
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [feeMode, walletType, orderTotal]);
-
-  // Handle gas fee mode changes and trigger immediate re-estimation
-  // 切换资费抵扣模式并静默重算费率
-  const selectFeeMode = async (mode: string) => {
-    if (feeMode === mode) return;
-    setFeeMode(mode);
-    setLoadingBalance(true);
-    try {
-      const balances = await fetchWalletBalances(walletType.id, mode, orderTotal, { directTransfer: true });
-      if (balances.minerFee?.amount) {
-        setMinerFeeTrx(balances.minerFee.amount);
-      }
-    } catch (e) {
-      console.warn('Re-estimating gas fee failed', e);
-    } finally {
-      setLoadingBalance(false);
-    }
-  };
-
-  // Perform transaction flow sequence
-  // 执行核心付款及授权交互操作
-  const handlePay = async () => {
+  const handlePay = useCallback(async () => {
     if (paying || paymentCompleted) return;
     setErrorMessage(null);
 
-    // Expire check
     if (expireAt <= Date.now()) {
       setErrorMessage(t('common.orderExpired'));
       return;
     }
-
     if (!tronReceiveAddress) {
       setErrorMessage('The TRON receiving address is unavailable. Please try again later.');
       return;
     }
 
-    // Connect trigger if wallet not ready
-    if (!walletReady) {
-      await refreshBalances({ force: true });
-      if (!walletReady) {
-        setErrorMessage(t('payment.openInWalletBrowser', { wallet: walletType.name }));
-        return;
-      }
-    }
-
-    // Sync gas fee before signing
-    const isRateLimitThrottled = walletType.id === 'imtoken' || walletType.id === 'bitkeep';
-    const recentlyRefreshed = Date.now() - lastBalanceRefreshAt < 30000;
-    if (!isRateLimitThrottled || !recentlyRefreshed) {
-      await refreshBalances({ force: true });
-    }
-
-    // Validate balances sufficiency, passing current allowance to determine if we should allow evoking Approve
-    // 校验账户余额及授权情况，传入当前授权金额
-    const readiness = validatePaymentReadiness({
-      feeMode,
-      usdt: wallet.usdt,
-      trx: wallet.trx,
-      orderTotal,
-      minerFeeTrx,
-    });
-    if (!readiness.ok) {
-      setErrorMessage(readiness.message || 'Validation failed');
+    const injectedWalletId = detectInjectedWalletId();
+    if (!isInjectedWalletBrowser() || !injectedWalletId) {
+      setShowWalletPicker(true);
       return;
     }
 
-    // Launch loader stages and signature request
-    // 激活加载中状态并更新支付文字
+    setSelectedWalletId(injectedWalletId);
     setPaying(true);
-    setPayStage('paying');
-
-    const updateStageText = (stage: string) => {
-      setPayStage(stage);
-    };
+    setPayStage('checking');
 
     try {
-      await payDirectUsdt(walletType.id, orderTotal, tronReceiveAddress, {
-        feeMode,
-        onProgress: updateStageText,
+      const balances = await fetchWalletBalances(injectedWalletId, FEE_MODE.RESOURCE, orderTotal, {
+        directTransfer: true,
+      });
+      const readiness = validatePaymentReadiness({
+        feeMode: FEE_MODE.RESOURCE,
+        usdt: balances.usdt,
+        trx: balances.trx,
+        orderTotal,
+        minerFeeTrx: balances.minerFee?.amount || '0',
+      });
+      if (!readiness.ok) throw new Error(readiness.message || 'Wallet is not ready for payment.');
+
+      await payDirectUsdt(injectedWalletId, orderTotal, tronReceiveAddress, {
+        feeMode: FEE_MODE.RESOURCE,
+        onProgress: setPayStage,
         onBeforeWalletSign: () => setPayStage('walletSign'),
         onAfterWalletSign: (stage) => {
           if (stage) setPayStage(stage);
         },
       });
 
-      // Complete and cache local paid status
       setPaymentCompleted(true);
       markOrderPaymentCompleted();
-      
-      // Auto redirect back
-      setTimeout(() => {
-        if (!redirectAfterPaymentSuccess(paymentReturnUrl)) {
-          onClose();
-        }
-      }, 1200);
-    } catch (err: any) {
-      console.error('Payment execution failed', err);
-      setErrorMessage(err?.message || t('common.paymentFailed'));
+      window.setTimeout(() => {
+        if (!redirectAfterPaymentSuccess(paymentReturnUrl)) onClose();
+      }, 900);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t('common.paymentFailed'));
     } finally {
       setPaying(false);
       setPayStage('');
     }
-  };
+  }, [expireAt, onClose, orderTotal, paymentCompleted, paying, paymentReturnUrl, tronReceiveAddress]);
 
-  // Convert current payStage into localized string
-  // 获取当前分阶段的具体加载文本
-  const getLoaderText = () => {
-    if (payStage === 'walletSign') return t('payment.approveSign');
-    if (payStage === 'approve') return t('payment.approveSign');
-    if (payStage === 'approveConfirming') return t('payment.approveConfirming');
-    if (payStage === 'deposit') return t('payment.depositSign');
-    if (payStage === 'depositConfirming') return t('payment.depositConfirming');
-    return t('payment.paying');
-  };
+  // A wallet deep link preserves the user's intent and starts the flow after the wallet browser injects its provider.
+  useEffect(() => {
+    if (
+      autoPayStarted.current ||
+      getUrlParam('autoPay') !== '1' ||
+      !tronReceiveAddress ||
+      !isInjectedWalletBrowser()
+    ) return;
 
-  // Safety checks TRX threshold indicator validity, considering allowance to allow action button click
-  // 检查安全校验通过状态，考虑授权情况以允许操作按钮激活
-  const warningValid = useMemo(() => {
-    const check = validatePaymentReadiness({
-      feeMode,
-      usdt: wallet.usdt,
-      trx: wallet.trx,
-      orderTotal,
-      minerFeeTrx,
-    });
-    return check.ok;
-  }, [feeMode, wallet, orderTotal, minerFeeTrx]);
+    autoPayStarted.current = true;
+    const timer = window.setTimeout(() => {
+      void handlePay();
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [handlePay, tronReceiveAddress]);
 
   const copyReceiveAddress = async () => {
     if (!tronReceiveAddress) return;
@@ -430,269 +220,117 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
     }
   };
 
-  const openWallet = () => {
-    const walletMeta = WALLET_META[walletType.id] || WALLET_META.tokenpocket;
-    window.location.href = walletMeta.buildDeepLink(window.location.href);
+  const openWallet = (walletId = selectedWalletId) => {
+    const wallet = WALLET_META[walletId] || WALLET_META.tokenpocket;
+    const target = new URL(window.location.href);
+    target.searchParams.set('walletId', walletId);
+    target.searchParams.set('autoPay', '1');
+    window.location.href = wallet.buildDeepLink(target.toString());
   };
 
+  const stageText = payStage === 'checking'
+    ? 'Checking wallet...'
+    : payStage === 'walletSign'
+      ? 'Confirm in your wallet...'
+      : payStage === 'depositConfirming'
+        ? 'Confirming payment...'
+        : 'Preparing payment...';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950 text-white font-nunito overflow-y-auto">
-      {/* Background decoration elements */}
-      {/* 背景装饰光效，配合高端视觉美学 */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-primary/10 via-zinc-950 to-zinc-950 pointer-events-none" />
-
-      {/* Main card box with glassmorphism */}
-      {/* 磨砂玻璃质感的支付确认主体卡片 */}
-      <div className="relative w-full max-w-lg bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col justify-between min-h-[600px] overflow-hidden">
-        
-        {/* Header navigation bar */}
-        {/* 头部导航操作栏 */}
-        <div className="flex items-center justify-between mb-6">
-          <button 
-            onClick={onClose}
-            className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none py-1"
-            title="Go Back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-semibold">Back</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950 px-4">
+      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900 shadow-2xl">
+        <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+          <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-sm font-bold text-zinc-400 transition hover:text-white">
+            <ArrowLeft className="h-4 w-4" /> Back
           </button>
-          
-          <div className="flex items-center gap-1.5 bg-zinc-800/80 border border-zinc-700/50 px-3 py-1.5 rounded-full text-sm font-bold text-primary">
-            <Clock className="w-4 h-4 animate-pulse" />
-            <span>{countdown}</span>
-          </div>
-        </div>
+          <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-zinc-300">{countdown}</span>
+        </header>
 
-        {/* Amount description section */}
-        {/* 应付金额卡片区（根据定金和解锁模式显示不同订单标题与备注） */}
-        <div className="text-center my-6">
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest mb-2">
-            {/* Show English heading for outcall booking deposit, or dynamic translated amount due */}
-            {/* 仅显示英文头部标题，避免中文混杂 */}
-            {isBooking ? 'Outcall Booking Payment' : t('payment.amountDue')}
-          </h2>
-          <div className="inline-flex items-baseline gap-2">
-            <span className="text-5xl font-extrabold text-white tracking-tight">
-              {parseFloat(orderTotal).toFixed(2)}
-            </span>
-            <span className="text-xl font-bold text-primary">USDT</span>
-          </div>
-          {selectedStaff && (
-            <p className="text-xs text-zinc-500 mt-2">
-              {isBooking 
-                ? `Booking payment for outcall service with `
-                : `Unlocking direct channels with `
-              }
-              <span className="text-zinc-300 font-semibold">{selectedStaff.name}</span>
-            </p>
-          )}
-        </div>
+        <main className="space-y-5 p-5 sm:p-6">
+          <section className="text-center">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">TRC20 USDT</p>
+            <p className="mt-3 text-5xl font-extrabold tracking-tight text-white drop-shadow-lg">{Number.isFinite(displayAmount) ? displayAmount.toFixed(2) : '0.00'}</p>
+            <p className="mt-1 text-sm font-bold text-zinc-400">USDT</p>
+            {selectedStaff ? <p className="mt-3 text-sm text-zinc-400">Payment for <span className="font-bold text-zinc-200">{selectedStaff.name}</span></p> : null}
+          </section>
 
-        {/* Balance information and wallet status */}
-        {/* 钱包账户连接详情与余额卡片 */}
-        <div className="space-y-4">
-          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-2xl p-4">
-            <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3 mb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold">
-                  <Wallet className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold">{t('payment.walletConnection')}</h3>
-                  <span className="text-[10px] text-zinc-500 font-semibold uppercase">{walletType.name}</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <span className={`inline-block w-2 h-2 rounded-full ${walletReady ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className="text-xs font-semibold text-zinc-400">
-                  {loadingBalance ? t('payment.connecting') : (walletReady ? t('payment.connected') : t('payment.notConnected'))}
-                </span>
-                <button
-                  onClick={() => refreshBalances({ force: true })}
-                  disabled={loadingBalance}
-                  className="text-zinc-400 hover:text-white disabled:opacity-30 p-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer bg-transparent border-none"
-                  title="Refresh Balance"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingBalance ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
+          <button
+            type="button"
+            data-pay-primary="true"
+            onClick={() => void handlePay()}
+            disabled={paying || paymentCompleted || !tronReceiveAddress}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 text-base font-extrabold text-white shadow-lg shadow-primary/20 transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+          >
+            {paymentCompleted ? <CheckCircle className="h-5 w-5" /> : paying ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Wallet className="h-5 w-5" />}
+            {paymentCompleted ? 'Payment successful' : paying ? stageText : 'Pay with wallet'}
+          </button>
+          <p className="text-center text-xs leading-relaxed text-zinc-500">We will try the wallet in this browser first. If none is detected, choose a wallet app.</p>
+
+          {errorMessage ? (
+            <div className="flex items-start gap-2 rounded-2xl border border-red-900/50 bg-red-950/30 p-3 text-xs font-semibold leading-relaxed text-red-300" role="alert">
+              <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{errorMessage}</span>
             </div>
+          ) : null}
 
-            {/* Sub balances displaying */}
-            {/* 多币种余额信息展示 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="text-[10px] font-semibold text-zinc-500 block mb-1">
-                  {t('payment.usdtBalance')}
-                </span>
-                <span className="text-base font-extrabold text-green-400">
-                  {wallet.usdt} USDT
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] font-semibold text-zinc-500 block mb-1">
-                  {t('payment.trxBalance')}
-                </span>
-                <span className="text-base font-extrabold text-sky-400">
-                  {wallet.trx} TRX
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-zinc-800/40 flex justify-between items-center text-[10px] text-zinc-500">
-              <span>{t('payment.address')}</span>
-              <span className="font-mono text-zinc-300 font-bold bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800/80">
-                {wallet.addressShort}
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-zinc-950/60 border border-primary/20 rounded-2xl p-4">
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-primary">TRC20 USDT payment</p>
-                <p className="mt-1 text-sm font-semibold text-white">Send exactly {parseFloat(orderTotal).toFixed(2)} USDT</p>
+                <p className="text-sm font-bold text-zinc-100">Manual payment</p>
+                <p className="mt-1 text-xs text-zinc-500">Scan the QR code or copy the address.</p>
               </div>
-              <QrCode className="h-5 w-5 shrink-0 text-primary" />
+              <QrCode className="h-5 w-5 text-primary" />
             </div>
+
+            {qrCodeDataUrl ? (
+              <div className="mx-auto mt-4 w-fit rounded-xl bg-white p-2.5">
+                <img src={qrCodeDataUrl} alt="TRON receiving address QR code" className="h-44 w-44" />
+              </div>
+            ) : (
+              <p className="mt-4 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-xs font-semibold text-amber-300">Receiving address is loading.</p>
+            )}
 
             {tronReceiveAddress ? (
               <>
-                {qrCodeDataUrl ? (
-                  <div className="mx-auto mt-4 w-fit rounded-xl bg-white p-3">
-                    <img src={qrCodeDataUrl} alt="TRON USDT receiving address QR code" className="h-48 w-48" />
-                  </div>
-                ) : null}
-                <p className="mt-3 text-center text-[10px] text-zinc-500">Scan to fill the receiving address. Select TRON / TRC20 and USDT in your wallet.</p>
-                <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2">
-                  <p className="break-all font-mono text-xs font-bold leading-relaxed text-zinc-300">{tronReceiveAddress}</p>
-                </div>
+                <p className="mt-3 break-all rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-300">{tronReceiveAddress}</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={copyReceiveAddress} className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold text-zinc-200 transition hover:border-primary hover:text-white">
+                  <button type="button" onClick={() => void copyReceiveAddress()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-3 py-2.5 text-xs font-bold text-zinc-200 transition hover:border-primary hover:text-white">
                     <Copy className="h-3.5 w-3.5" /> {addressCopied ? 'Copied' : 'Copy address'}
                   </button>
-                  <button type="button" onClick={openWallet} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-primary-hover">
-                    <ExternalLink className="h-3.5 w-3.5" /> Open in wallet
+                  <button type="button" onClick={() => openWallet()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-3 py-2.5 text-xs font-bold text-zinc-200 transition hover:border-primary hover:text-white">
+                    <ExternalLink className="h-3.5 w-3.5" /> Open wallet
                   </button>
                 </div>
               </>
-            ) : (
-              <p className="mt-4 rounded-xl border border-amber-900/40 bg-amber-950/20 p-3 text-xs font-semibold text-amber-400">Receiving address is loading. Payment is disabled until it is available.</p>
-            )}
-          </div>
+            ) : null}
+          </section>
 
-          {/* Gas fee options and estimator selector */}
-          {/* 资费抵扣方式选择与估算 */}
-          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3.5">
-              <div className="flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-sky-400" />
-                <span className="text-xs font-bold text-zinc-300">
-                  {t('payment.estimatedNetworkFee')}
-                </span>
-              </div>
-              <span className="text-xs font-extrabold text-sky-400 bg-sky-950/50 px-2 py-0.5 rounded-full border border-sky-900/30">
-                {loadingBalance ? t('payment.feeCalculating') : `~${minerFeeTrx} TRX`}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => selectFeeMode(FEE_MODE.RESOURCE)}
-                className={`py-2 px-3 rounded-xl border text-left transition-all cursor-pointer bg-transparent ${
-                  feeMode === FEE_MODE.RESOURCE 
-                    ? 'border-primary bg-primary/5 text-white' 
-                    : 'border-zinc-800 text-zinc-500 hover:border-zinc-700/80 hover:text-zinc-300'
-                }`}
-              >
-                <span className="text-[10px] font-bold block">{t('payment.useResources')}</span>
-                <span className="text-[9px] opacity-70">{t('payment.energyBandwidth')}</span>
-              </button>
-              <button
-                onClick={() => selectFeeMode(FEE_MODE.BURN)}
-                className={`py-2 px-3 rounded-xl border text-left transition-all cursor-pointer bg-transparent ${
-                  feeMode === FEE_MODE.BURN 
-                    ? 'border-primary bg-primary/5 text-white' 
-                    : 'border-zinc-800 text-zinc-500 hover:border-zinc-700/80 hover:text-zinc-300'
-                }`}
-              >
-                <span className="text-[10px] font-bold block">{t('payment.burnTrx')}</span>
-                <span className="text-[9px] opacity-70">{t('payment.burnTrxTokens')}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Error / Warning Alert container */}
-        {/* 校验提示及安全警告面板 */}
-        <div className="my-5">
-          {errorMessage ? (
-            <div className="flex items-start gap-2.5 bg-red-950/20 border border-red-900/30 rounded-2xl p-3.5 text-xs text-red-400 animate-fade-in">
-              <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="font-semibold leading-relaxed">{errorMessage}</span>
-            </div>
-          ) : (
-            <div className={`flex items-start gap-2.5 rounded-2xl p-3.5 text-xs transition-all ${
-              warningValid 
-                ? 'bg-zinc-950/40 border border-zinc-800/80 text-zinc-400' 
-                : 'bg-amber-950/20 border border-amber-900/30 text-amber-400'
-            }`}>
-              <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${warningValid ? 'text-zinc-500' : 'text-amber-500'}`} />
-              <span className="font-semibold leading-relaxed">
-                {feeMode === FEE_MODE.BURN 
-                  ? t('payment.warningBurnMode', { total: Math.max(parseFloat(minerFeeTrx), MIN_TRX_PAY_GATE).toFixed(2) })
-                  : t('payment.tisp')
-                }
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Contract notice text */}
-        {/* 收款说明 */}
-        <p className="text-[10px] text-zinc-500 text-center leading-relaxed px-4 mb-6">
-          Only send USDT on the TRON / TRC20 network. The payment goes directly to the configured receiving address. Keep enough TRX in your wallet for network fees.
-        </p>
-
-        {/* Footer pay trigger CTA button */}
-        {/* 底部支付操作触发按钮 */}
-        <div>
-          <button
-            onClick={handlePay}
-            disabled={paying || paymentCompleted || !walletReady || !warningValid || !tronReceiveAddress}
-            className={`w-full py-4 rounded-full font-bold flex items-center justify-center gap-2 shadow-lg transition-all duration-300 cursor-pointer ${
-              paymentCompleted
-                ? 'bg-green-500 hover:bg-green-600 text-white shadow-green-500/20'
-                : paying
-                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50'
-                : !walletReady || !warningValid || !tronReceiveAddress
-                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-800/60'
-                : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20 hover:scale-[1.02]'
-            }`}
-          >
-            {paymentCompleted ? (
-              <>
-                <CheckCircle className="w-5 h-5" />
-                <span>{t('common.paymentSuccess')}</span>
-              </>
-            ) : paying ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>{getLoaderText()}</span>
-              </>
-            ) : (
-              <span>
-                {!walletReady 
-                  ? t('payment.connectWallet', { wallet: walletType.name }) 
-                  : t('payment.payNow')
-                }
-              </span>
-            )}
-          </button>
-        </div>
-
+          <p className="text-center text-[11px] leading-relaxed text-zinc-500">Only send USDT on the TRON / TRC20 network. Keep enough TRX in your wallet for network fees.</p>
+        </main>
       </div>
+
+      {showWalletPicker ? (
+        <div className="fixed inset-0 z-10 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center" onClick={() => setShowWalletPicker(false)}>
+          <section className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-extrabold">Choose a wallet</p>
+                <p className="mt-1 text-xs text-zinc-500">Your wallet app will open on the TRON payment page.</p>
+              </div>
+              <button type="button" onClick={() => setShowWalletPicker(false)} aria-label="Close wallet selection" className="rounded-full p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {Object.keys(WALLET_META).map((walletId) => (
+                <button type="button" key={walletId} onClick={() => openWallet(walletId)} className="flex min-h-20 items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-950/60 px-3 py-3 text-left transition hover:border-primary hover:bg-primary/10">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white p-2"><img src={walletBrandIconUrls[walletId as WalletBrandId]} alt="" aria-hidden="true" className="h-full w-full object-contain" /></span>
+                  <span className="text-xs font-bold text-zinc-200">{walletName(walletId)}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-4 text-center text-[11px] leading-relaxed text-zinc-500">After the wallet opens, review the amount and approve the transaction there.</p>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 };

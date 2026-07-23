@@ -19,7 +19,7 @@ export function StaffCard({ staff, onClick, baseUrl = '', isFavorite = false, on
       <span className="staff-card__media">
         {photo ? <img src={photo} alt={`${staff.name} profile`} loading="lazy" /> : <span className="staff-card__fallback">{staff.name.charAt(0)}</span>}
         <span className={`staff-card__status ${staff.isActive ? 'is-online' : ''}`}>
-          <span /> {staff.isActive ? 'Online' : 'Replies today'}
+          <span /> {staff.isActive ? 'Online' : 'Offline'}
         </span>
         {staff.verified ? <BadgeCheck className="staff-card__verified" aria-label="Verified profile" /> : null}
       </span>
@@ -30,13 +30,13 @@ export function StaffCard({ staff, onClick, baseUrl = '', isFavorite = false, on
           <span className="staff-card__rating"><Star aria-hidden="true" /> {staff.rating ? staff.rating.toFixed(1) : 'New'}</span>
         </span>
         <span className="staff-card__meta">
-          <span><MapPin aria-hidden="true" /> {staff.location ?? staff.city ?? 'Your area'}</span>
-          <span><Clock3 aria-hidden="true" /> ~{staff.responseMinutes ?? 5} min</span>
+          <span><MapPin aria-hidden="true" /> {staff.location ?? staff.city ?? 'Location not provided'}</span>
+          {staff.responseMinutes != null ? <span><Clock3 aria-hidden="true" /> ~{staff.responseMinutes} min</span> : null}
         </span>
-        <span className="staff-card__description">{staff.description || `Available in ${staff.city || 'your area'}.`}</span>
+        <span className="staff-card__description">{staff.description || 'No description provided.'}</span>
         <span className="staff-card__footer">
-          <span>{staff.reviewCount ?? 0} verified reviews</span>
-          <strong>{staff.price.toFixed(0)} USDT <small>/ hour</small></strong>
+          <span>{staff.reviewCount != null ? `${staff.reviewCount} reviews` : 'Reviews unavailable'}</span>
+          <strong>{staff.price > 0 ? `${staff.price.toFixed(0)} USDT` : 'Price unavailable'} {staff.price > 0 ? <small>/ hour</small> : null}</strong>
         </span>
       </span>
       </button>

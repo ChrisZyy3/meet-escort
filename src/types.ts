@@ -1,8 +1,7 @@
 /**
  * TypeScript Data Models
  *
- * Aligns with the public REST API while keeping optional UI-only fields
- * used by local mock data and presentation layers.
+ * Normalized data models for the public REST API and presentation layers.
  */
 
 /** Normalized staff profile used across the UI. */
@@ -17,18 +16,18 @@ export interface Staff {
   photoUrls: string[];
   country?: string;
   city?: string;
-  /** Convenience display location: city, country, or mock location. */
+  /** Convenience display location derived from API city and country fields. */
   location?: string;
   age?: number;
   rating?: number;
   height?: number;
   size?: string;
   bodyType?: string;
-  /** Parsed language list from API string or mock array. */
+  /** Parsed language list from the API languages field. */
   languages?: string[];
   preferences?: string;
   createdAt?: string;
-  // UI / mock-only fields (not always returned by API)
+  // Optional fields supported by extended API responses.
   description?: string;
   details?: string;
   phone?: string;

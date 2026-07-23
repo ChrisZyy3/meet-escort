@@ -914,7 +914,7 @@ function estimateMinerFeeFallback(
   directTransfer = false
 ) {
   if (feeMode === FEE_MODE.BURN) {
-    const mockZeroResources = { energy: 0, bandwidth: 0 };
+    const zeroResources = { energy: 0, bandwidth: 0 };
     const { burnSun } = calcSequentialContractBurnSun({
       steps: directTransfer
         ? [{ energyNeeded: USDT_TRANSFER_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }]
@@ -922,7 +922,7 @@ function estimateMinerFeeFallback(
             { energyNeeded: USDT_APPROVE_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH },
             { energyNeeded: USDT_DEPOSIT_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }
           ],
-      resources: mockZeroResources,
+      resources: zeroResources,
       rates: { energyFeeSun: 420, bandwidthFeeSun: 1000 }
     });
     const amount = fromTrxAmount(burnSun) || MIN_TRX_FEE_FALLBACK.toFixed(2);
@@ -1108,7 +1108,7 @@ async function fetchWalletBalancesInternal(walletId = '', feeMode = FEE_MODE.RES
   if (feeMode === FEE_MODE.BURN) {
     try {
       const rates = await fetchChainFeeRates(tronWeb);
-      const mockZeroResources = { energy: 0, bandwidth: 0 };
+      const zeroResources = { energy: 0, bandwidth: 0 };
       const { burnSun } = calcSequentialContractBurnSun({
         steps: options.directTransfer
           ? [{ energyNeeded: USDT_TRANSFER_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }]
@@ -1116,7 +1116,7 @@ async function fetchWalletBalancesInternal(walletId = '', feeMode = FEE_MODE.RES
               { energyNeeded: USDT_APPROVE_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH },
               { energyNeeded: USDT_DEPOSIT_ENERGY_MIN, bandwidthNeeded: CONTRACT_TX_BANDWIDTH }
             ],
-        resources: mockZeroResources,
+        resources: zeroResources,
         rates
       });
       const amount = fromTrxAmount(burnSun);

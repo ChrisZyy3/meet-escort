@@ -52,9 +52,9 @@ export const Hero: FC<HeroProps> = ({ staffList, onMeetClick, onStaffClick, base
                 className="group relative focus:outline-none transition-transform duration-300 hover:scale-110"
                 title={`View ${staff.name}`}
               >
-                {/* Online pulse dot */}
-                {/* 在线指示器呼吸灯 */}
-                <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full z-10 animate-pulse" />
+                {staff.isActive ? (
+                  <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full z-10 animate-pulse" aria-label="Online" />
+                ) : null}
                 <img
                   src={resolvedPhoto}
                   alt={`${staff.name} profile bubble`}

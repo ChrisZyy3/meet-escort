@@ -4,21 +4,17 @@ import { CookieBanner } from './components/CookieBanner';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { FeaturedIn } from './components/FeaturedIn';
-import { ActivityFeed } from './components/ActivityFeed';
-import { TrustedReviews } from './components/TrustedReviews';
 import { StaffGrid } from './components/StaffGrid';
 import { Features } from './components/Features';
-import { RegisteredGrid } from './components/RegisteredGrid';
 import { WhySmooci } from './components/WhySmooci';
 import { Footer } from './components/Footer';
 import { StaffDetail } from './components/StaffDetail';
 import { MeetEscortFlow } from './components/MeetEscortFlow';
 import { FavoritesPanel } from './components/FavoritesPanel';
 
-// Import Types, mock fallback list, and API service functions
+// Import API-backed types and service functions.
 // 引入类型声明、本地备用数据与 API 请求函数
 import type { AuthUser, Staff } from './types';
-import { mockStaffList } from './mockData';
 import {
   API_BASE_URL,
   clearAuthSession,
@@ -28,16 +24,12 @@ import {
   getStoredAuthToken,
   getStoredAuthUser,
   logoutUser,
-  mergeStaffWithFallback,
 } from './services/api';
 // Import the new Web3 payment confirmation component
 // 导入新增的 Web3 支付确认页组件
 import { PaymentConfirm } from './components/PaymentConfirm';
 import { AuthModal } from './components/AuthModal';
 import { Toast, type ToastKind } from './components/Toast';
-
-const mergeStaffData = (items: Staff[]) =>
-  items.map((item) => mergeStaffWithFallback(item, mockStaffList.find((staff) => staff.id === item.id)));
 
 const FAVORITES_STORAGE_KEY = 'meet_escort_favorite_ids';
 
@@ -59,7 +51,7 @@ const loadFavoriteIds = (): Set<number> => {
 export default function App() {
   // Service personnel listing data state
   // 服务人员列表数据状态
-  const [staffList, setStaffList] = useState<Staff[]>(mockStaffList);
+  const [staffList, setStaffList] = useState<Staff[]>([]);
   
   // Dialog selection tracking state
   // 选中的人员详情弹窗状态
@@ -68,6 +60,7 @@ export default function App() {
   // Interface loading indicator state
   // 页面骨架屏加载状态
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [staffError, setStaffError] = useState<string | null>(null);
   const [isMeetFlowOpen, setIsMeetFlowOpen] = useState<boolean>(false);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -96,7 +89,7 @@ export default function App() {
         setSelectedStaff(null);
         return;
       }
-      const matched = staffList.find((staff) => staff.id === staffId) || mockStaffList.find((staff) => staff.id === staffId) || null;
+      const matched = staffList.find((staff) => staff.id === staffId) || null;
       setSelectedStaff(matched);
     };
     window.addEventListener('popstate', handlePopState);
@@ -109,14 +102,14 @@ export default function App() {
     // 组件挂载时自动请求后端接口，拉取人员列表
     fetchStaffList()
       .then((data) => {
-        if (data.length) setStaffList(mergeStaffData(data));
+        setStaffList(data);
+        setStaffError(null);
         setIsLoading(false);
       })
       .catch((error) => {
-        console.error("API error, falling back to local mock data:", error);
-        // Fallback to offline mock data if connection fails to maintain layout visual integrity
-        // 若网络错误或 CORS 问题，采用本地 Mock 数据兜底，确保页面展示完整
-        setStaffList(mockStaffList);
+        console.error('Failed to load staff list:', error);
+        setStaffList([]);
+        setStaffError(error instanceof Error ? error.message : 'Unable to load profiles right now.');
         setIsLoading(false);
       });
   }, []);
@@ -156,7 +149,7 @@ export default function App() {
       const staffIdParam = urlParams.get('staffId');
       if (staffIdParam) {
         const id = parseInt(staffIdParam, 10);
-        const matched = staffList.find((s) => s.id === id) || mockStaffList.find((s) => s.id === id);
+        const matched = staffList.find((s) => s.id === id);
         if (matched) {
           setSelectedStaff(matched);
         }
@@ -236,35 +229,27 @@ export default function App() {
       {/* 报道媒体合作墙 */}
       <FeaturedIn />
 
-      {/* 5. Live update stream items */}
+      {/* 5. API-backed staff directory */}
       {/* 实时动态流 */}
-      <ActivityFeed />
-
-      {/* 5.5. Trusted Reviews Stats Pillar Block */}
-      {/* 真实评价统计及验证栏 */}
-      <TrustedReviews />
-
-      {/* 6. Online Grid directory */}
+      {/* Directory */}
       {/* 在线服务人员卡片列表网格 */}
       <StaffGrid 
         staffList={staffList} 
         onStaffClick={handleStaffClick} 
         isLoading={isLoading} 
+        errorMessage={staffError}
         baseUrl={API_BASE_URL}
         favoriteIds={favoriteIds}
         onToggleFavorite={toggleFavorite}
         onShowFavorites={() => setIsFavoritesOpen(true)}
       />
 
-      {/* 7. Platform Features and values */}
+      {/* 6. Platform Features and values */}
       {/* 工作流流程与 9 大优势模块 */}
       <Features />
 
-      {/* 7.3. Total Registered Escorts Thumbnail Grid */}
-      {/* 注册人员大网格缩略图列表 */}
-      <RegisteredGrid onSearchClick={() => setIsMeetFlowOpen(true)} />
-
-      {/* 7.7. Safety, Trust, Privacy & Support Section */}
+      {/* Directory content above is sourced from the live API. */}
+      {/* 7. Safety, Trust, Privacy & Support Section */}
       {/* 四大安全信任保障板块 */}
       <WhySmooci />
 
@@ -289,7 +274,7 @@ export default function App() {
 
       {isMeetFlowOpen && (
         <MeetEscortFlow
-          staffList={staffList.length ? staffList : mockStaffList}
+          staffList={staffList}
           baseUrl={API_BASE_URL}
           onClose={() => setIsMeetFlowOpen(false)}
           onStaffClick={(staff) => {
