@@ -35,6 +35,16 @@ const dateForInput = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const formatDateForDisplay = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return value;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, day));
+};
+
 export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose, onProceedToPayment }) => {
   const [step, setStep] = useState<Step>('schedule');
   const [serviceMode, setServiceMode] = useState<ServiceMode>('On-call');
@@ -58,7 +68,7 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
   const canContinueSchedule = Boolean(date && time && duration > 0);
   const canContinueContact = Boolean(name.trim() && email.trim() && phone.trim());
   const canSubmit = Boolean(hotel.trim() && room.trim());
-  const summary = useMemo(() => `${serviceMode} · ${date} · ${time} · ${duration}h`, [date, duration, serviceMode, time]);
+  const summary = useMemo(() => `${serviceMode} / ${formatDateForDisplay(date)} / ${time} / ${duration}h`, [date, duration, serviceMode, time]);
 
   const goBack = () => {
     const steps: Step[] = ['schedule', 'contact', 'location'];
@@ -123,7 +133,7 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
                 {(['On-call', 'In-call'] as ServiceMode[]).map((mode) => <Choice key={mode} title={mode} subtitle={mode === 'On-call' ? 'Meet at your selected location' : 'Meet at the profile location'} selected={serviceMode === mode} onClick={() => setServiceMode(mode)} />)}
               </div>
               <div className="mt-5 grid min-w-0 gap-4 sm:grid-cols-2 [&>label]:min-w-0">
-                <Field label="Date" className="min-w-0"><input type="date" min={minDate} value={date} onChange={(event) => setDate(event.target.value)} className="field" /></Field>
+                <Field label="Date" className="min-w-0"><span className="relative block"><span className="field block">{formatDateForDisplay(date)}</span><input type="date" min={minDate} value={date} onChange={(event) => setDate(event.target.value)} aria-label="Date" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" /></span></Field>
                 <Field label="Time" className="min-w-0"><input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="field" /></Field>
               </div>
               <Field label="Duration" className="mt-5"><select value={duration} onChange={(event) => setDuration(Number(event.target.value))} className="field"><option value={1}>1 hour</option><option value={2}>2 hours</option><option value={3}>3 hours</option><option value={4}>4 hours</option></select></Field>
@@ -155,7 +165,7 @@ export const BookingRequestFlow: FC<BookingRequestFlowProps> = ({ staff, onClose
                 <p className="font-bold text-neutral-dark">Request summary</p>
                 <p className="mt-1 text-neutral-light">{summary}</p>
                 <p className="mt-1 text-neutral-light">Contact via {contactMethod}</p>
-                <div className="mt-4 space-y-2 border-t border-gray-200 pt-4 text-neutral-medium"><div className="flex justify-between"><span>{staff.name} · {duration}h</span><span>${baseTotal.toFixed(2)}</span></div>{addDinner && <div className="flex justify-between"><span>Dinner arrangement</span><span>$50.00</span></div>}<div className="flex justify-between pt-2 text-base font-extrabold text-neutral-dark"><span>Total</span><span>${total.toFixed(2)}</span></div></div>
+                <div className="mt-4 space-y-2 border-t border-gray-200 pt-4 text-neutral-medium"><div className="flex justify-between"><span>{staff.name} / {duration}h</span><span>${baseTotal.toFixed(2)}</span></div>{addDinner && <div className="flex justify-between"><span>Dinner arrangement</span><span>$50.00</span></div>}<div className="flex justify-between pt-2 text-base font-extrabold text-neutral-dark"><span>Total</span><span>${total.toFixed(2)}</span></div></div>
               </div>
               <button disabled={!canSubmit} onClick={submit} className="mt-7 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"><Send className="h-4 w-4" /> Send request</button>
             </Section>

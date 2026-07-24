@@ -237,8 +237,8 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
         : 'Preparing payment...';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950 px-4">
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex min-h-screen items-center justify-center overflow-y-auto bg-zinc-950 px-4 py-6">
+      <div className="relative my-auto w-full max-w-md overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900 shadow-2xl">
         <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
           <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-sm font-bold text-zinc-400 transition hover:text-white">
             <ArrowLeft className="h-4 w-4" /> Back

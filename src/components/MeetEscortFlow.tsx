@@ -29,6 +29,16 @@ const formatDateForInput = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const formatDateForDisplay = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return value;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, day));
+};
+
 export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({
   staffList,
   baseUrl = '',
@@ -189,7 +199,12 @@ export const MeetEscortFlow: FC<MeetEscortFlowProps> = ({
         {step === 'time' && (
           <StepPanel icon={<CalendarDays />} eyebrow="Step 3 of 4" title="When would you like to meet?" description="Choose a date and preferred time for your request.">
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm font-bold text-neutral-dark">Date<input type="date" min={minDate} value={date} onChange={(event) => setDate(event.target.value)} className="mt-2 block w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-medium text-neutral-medium outline-none focus:border-primary" /></label>
+              <label className="text-sm font-bold text-neutral-dark">Date
+                <span className="relative mt-2 block">
+                  <span className="block w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-medium text-neutral-medium">{formatDateForDisplay(date)}</span>
+                  <input type="date" min={minDate} value={date} onChange={(event) => setDate(event.target.value)} aria-label="Date" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                </span>
+              </label>
               <label className="text-sm font-bold text-neutral-dark">Preferred time<input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="mt-2 block w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-medium text-neutral-medium outline-none focus:border-primary" /></label>
             </div>
             <button type="button" onClick={() => setStep('duration')} className="mt-7 w-full rounded-full bg-primary px-6 py-3.5 font-bold text-white shadow-lg transition hover:bg-primary-hover">Continue</button>
