@@ -10,7 +10,8 @@ interface ChatWidgetProps {
   onLoginClick: () => void;
 }
 
-const POLL_INTERVAL_MS = 2500;
+const ACTIVE_POLL_INTERVAL_MS = 2500;
+const BACKGROUND_POLL_INTERVAL_MS = 60000;
 const LAST_READ_PREFIX = 'meet_escort_chat_last_read_';
 
 const readStoredMessageId = (key: string): number => {
@@ -48,7 +49,7 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
   }, []);
 
   const pullMessages = useCallback(async () => {
-    if (!user || pollingRef.current) return;
+    if (!user || pollingRef.current || document.visibilityState === 'hidden') return;
     pollingRef.current = true;
     if (!historyLoadedRef.current) setIsLoading(true);
     setError(null);
@@ -89,9 +90,30 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
     if (!user) return;
 
     void pullMessages();
-    const timer = window.setInterval(() => void pullMessages(), POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
   }, [lastReadKey, pullMessages, user]);
+
+  const hasConversation = messages.length > 0;
+
+  useEffect(() => {
+    if (!user || (!isExpanded && !hasConversation)) return;
+
+    const interval = isExpanded ? ACTIVE_POLL_INTERVAL_MS : BACKGROUND_POLL_INTERVAL_MS;
+    const timer = window.setInterval(() => void pullMessages(), interval);
+    return () => window.clearInterval(timer);
+  }, [hasConversation, isExpanded, pullMessages, user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && (isExpanded || hasConversation)) {
+        void pullMessages();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [hasConversation, isExpanded, pullMessages, user]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 767px)');
