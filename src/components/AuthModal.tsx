@@ -1,5 +1,5 @@
-import { useState, type FC, type FormEvent } from 'react';
-import { Loader2, LogIn, UserPlus, X } from 'lucide-react';
+import { useEffect, useState, type FC, type FormEvent } from 'react';
+import { CheckCircle2, Loader2, LogIn, UserPlus, X } from 'lucide-react';
 import type { AuthSession } from '../types';
 import { loginUser, registerUser } from '../services/api';
 
@@ -20,6 +20,14 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!successMessage) return;
+
+    const timer = window.setTimeout(onClose, 1400);
+    return () => window.clearTimeout(timer);
+  }, [successMessage, onClose]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -42,6 +50,7 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
           ? await loginUser(trimmedEmail, password)
           : await registerUser(trimmedEmail, password);
       onAuthenticated(session, mode);
+      setSuccessMessage(mode === 'login' ? 'Login successful' : 'Account created successfully');
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { msg?: string } }; message?: string })?.response?.data?.msg ||
@@ -85,6 +94,18 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
           </div>
         </div>
 
+        {successMessage ? (
+          <div className="flex flex-col items-center rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-8 text-center" role="status" aria-live="polite">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <h3 className="text-xl font-extrabold text-emerald-800">{successMessage}</h3>
+            <p className="mt-2 text-sm font-semibold text-emerald-700">
+              {mode === 'login' ? 'Welcome back. You are now signed in.' : 'Your account is ready to use.'}
+            </p>
+          </div>
+        ) : (
+          <>
         <div className="mb-5 grid grid-cols-2 gap-2 rounded-full bg-neutral-bgLight p-1">
           <button
             type="button"
@@ -155,6 +176,8 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
             {submitting ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
+          </>
+        )}
       </div>
     </div>
   );

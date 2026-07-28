@@ -306,7 +306,6 @@ export default function App() {
           onError={(message) => showToast(message, 'error')}
           onAuthenticated={(session, mode) => {
             setAuthUser(session.user);
-            setIsAuthOpen(false);
             showToast(mode === 'register' ? 'Account created successfully.' : 'Successfully signed in.');
           }}
         />
