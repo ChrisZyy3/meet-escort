@@ -113,7 +113,7 @@ export const Navbar: FC<NavbarProps> = ({ user = null, onLoginClick, onLogoutCli
           <div className="flex items-center gap-1 lg:hidden">
             {user ? (
               <span
-                className="max-w-[8ch] whitespace-nowrap px-2 py-2 text-sm font-semibold text-neutral-dark"
+                className="max-w-16 break-all whitespace-normal px-2 py-1 text-center text-sm font-semibold leading-tight text-neutral-dark"
                 title={user.email}
               >
                 {shortenUsername(user.email)}
