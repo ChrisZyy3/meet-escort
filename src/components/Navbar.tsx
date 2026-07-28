@@ -8,6 +8,13 @@ interface NavbarProps {
   onLogoutClick?: () => void;
 }
 
+const shortenUsername = (username: string, maxLength = 8): string => {
+  if (username.length <= maxLength) return username;
+
+  const suffixLength = 3;
+  return `${username.slice(0, maxLength - suffixLength - 1)}…${username.slice(-suffixLength)}`;
+};
+
 /**
  * Navbar Component
  *
@@ -103,7 +110,23 @@ export const Navbar: FC<NavbarProps> = ({ user = null, onLoginClick, onLogoutCli
             <AuthActions />
           </div>
 
-          <div className="flex items-center lg:hidden">
+          <div className="flex items-center gap-1 lg:hidden">
+            {user ? (
+              <span
+                className="max-w-[8ch] whitespace-nowrap px-2 py-2 text-sm font-semibold text-neutral-dark"
+                title={user.email}
+              >
+                {shortenUsername(user.email)}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={onLoginClick}
+                className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-dark shadow-sm transition hover:bg-neutral-bgLight"
+              >
+                Login
+              </button>
+            )}
             <button
               onClick={toggleMenu}
               type="button"

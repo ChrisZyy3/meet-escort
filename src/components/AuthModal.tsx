@@ -25,7 +25,7 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
   useEffect(() => {
     if (!successMessage) return;
 
-    const timer = window.setTimeout(onClose, 1400);
+    const timer = window.setTimeout(onClose, 3000);
     return () => window.clearTimeout(timer);
   }, [successMessage, onClose]);
 
