@@ -30,6 +30,7 @@ import {
 import { PaymentConfirm } from './components/PaymentConfirm';
 import { AuthModal } from './components/AuthModal';
 import { Toast, type ToastKind } from './components/Toast';
+import { ChatWidget } from './components/ChatWidget';
 
 const FAVORITES_STORAGE_KEY = 'meet_escort_favorite_ids';
 
@@ -310,6 +311,12 @@ export default function App() {
           }}
         />
       )}
+
+      <ChatWidget
+        user={authUser}
+        isSuppressed={isAuthOpen || isMeetFlowOpen || isFavoritesOpen}
+        onLoginClick={() => setIsAuthOpen(true)}
+      />
 
       {toast ? <Toast message={toast.message} kind={toast.kind} onClose={() => setToast(null)} /> : null}
     </div>

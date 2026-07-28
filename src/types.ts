@@ -92,6 +92,15 @@ export interface AuthSession {
   user: AuthUser;
 }
 
+export interface ChatMessage {
+  id: number;
+  sender: 'user' | 'admin' | string;
+  content: string;
+  fileUrl: string;
+  adminName: string;
+  createdAt: string;
+}
+
 export interface SearchCriteria {
   city: string;
   date: string;

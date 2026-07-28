@@ -3,6 +3,7 @@ import type {
   AppSettings,
   AuthSession,
   AuthUser,
+  ChatMessage,
   CityRecord,
   Staff,
   StaffApiPayload,
@@ -279,6 +280,22 @@ export const logoutUser = async (): Promise<void> => {
   } finally {
     clearAuthSession();
   }
+};
+
+/** Fetch this user's chat history or only messages newer than `since`. */
+export const fetchChatMessages = async (since: number = 0): Promise<ChatMessage[]> => {
+  const response = await apiClient.get<ApiResponse<ChatMessage[]>>('/api/chat/messages', {
+    params: { since },
+  });
+  return assertOk(response, 'Unable to load support messages.') ?? [];
+};
+
+/** Send a text-only support message. */
+export const sendChatMessage = async (content: string): Promise<void> => {
+  const response = await apiClient.post<ApiResponse<null>>('/api/chat/messages', {
+    content: content.trim(),
+  });
+  assertOk(response, 'Unable to send support message.');
 };
 
 export const API_BASE_URL = BASE_URL;
