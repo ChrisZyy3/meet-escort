@@ -83,13 +83,13 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
       .then((settings) => {
         if (!active) return;
         if (!isValidTronRecipientAddress(settings.tronAddress)) {
-          setErrorMessage('The configured TRON receiving address is invalid.');
+          setErrorMessage(t('payment.addressInvalid'));
           return;
         }
         setTronReceiveAddress(settings.tronAddress);
       })
       .catch(() => {
-        if (active) setErrorMessage('Unable to load the TRON receiving address. Please refresh and try again.');
+        if (active) setErrorMessage(t('payment.loadAddressFailed'));
       });
 
     return () => {
@@ -144,7 +144,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
       return;
     }
     if (!tronReceiveAddress) {
-      setErrorMessage('The TRON receiving address is unavailable. Please try again later.');
+      setErrorMessage(t('payment.addressUnavailable'));
       return;
     }
 
@@ -216,7 +216,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
       setAddressCopied(true);
       window.setTimeout(() => setAddressCopied(false), 1800);
     } catch {
-      setErrorMessage('Copy failed. Please select the address manually.');
+      setErrorMessage(t('payment.copyFailed'));
     }
   };
 
@@ -229,19 +229,19 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
   };
 
   const stageText = payStage === 'checking'
-    ? 'Checking wallet...'
+    ? t('payment.checkingWallet')
     : payStage === 'walletSign'
-      ? 'Confirm in your wallet...'
+      ? t('payment.confirmWallet')
       : payStage === 'depositConfirming'
-        ? 'Confirming payment...'
-        : 'Preparing payment...';
+        ? t('payment.confirming')
+        : t('payment.preparing');
 
   return (
     <div className="fixed inset-0 z-50 flex min-h-screen items-center justify-center overflow-y-auto bg-zinc-950 px-4 py-6">
       <div className="relative my-auto w-full max-w-md overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900 shadow-2xl">
         <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
           <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-sm font-bold text-zinc-400 transition hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> Back
+            <ArrowLeft className="h-4 w-4" /> {t('payment.back')}
           </button>
           <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-zinc-300">{countdown}</span>
         </header>
@@ -251,7 +251,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">TRC20 USDT</p>
             <p className="mt-3 text-5xl font-extrabold tracking-tight text-white drop-shadow-lg">{Number.isFinite(displayAmount) ? displayAmount.toFixed(2) : '0.00'}</p>
             <p className="mt-1 text-sm font-bold text-zinc-400">USDT</p>
-            {selectedStaff ? <p className="mt-3 text-sm text-zinc-400">Payment for <span className="font-bold text-zinc-200">{selectedStaff.name}</span></p> : null}
+            {selectedStaff ? <p className="mt-3 text-sm text-zinc-400">{t('payment.for')} <span className="font-bold text-zinc-200">{selectedStaff.name}</span></p> : null}
           </section>
 
           <button
@@ -262,9 +262,9 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 text-base font-extrabold text-white shadow-lg shadow-primary/20 transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
           >
             {paymentCompleted ? <CheckCircle className="h-5 w-5" /> : paying ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Wallet className="h-5 w-5" />}
-            {paymentCompleted ? 'Payment successful' : paying ? stageText : 'Pay with wallet'}
+            {paymentCompleted ? t('payment.success') : paying ? stageText : t('payment.payWithWallet')}
           </button>
-          <p className="text-center text-xs leading-relaxed text-zinc-500">We will try the wallet in this browser first. If none is detected, choose a wallet app.</p>
+          <p className="text-center text-xs leading-relaxed text-zinc-500">{t('payment.walletHint')}</p>
 
           {errorMessage ? (
             <div className="flex items-start gap-2 rounded-2xl border border-red-900/50 bg-red-950/30 p-3 text-xs font-semibold leading-relaxed text-red-300" role="alert">
@@ -276,8 +276,8 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
           <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-zinc-100">Manual payment</p>
-                <p className="mt-1 text-xs text-zinc-500">Scan the QR code or copy the address.</p>
+                <p className="text-sm font-bold text-zinc-100">{t('payment.manual')}</p>
+                <p className="mt-1 text-xs text-zinc-500">{t('payment.scanOrCopy')}</p>
               </div>
               <QrCode className="h-5 w-5 text-primary" />
             </div>
@@ -287,7 +287,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
                 <img src={qrCodeDataUrl} alt="TRON receiving address QR code" className="h-44 w-44" />
               </div>
             ) : (
-              <p className="mt-4 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-xs font-semibold text-amber-300">Receiving address is loading.</p>
+              <p className="mt-4 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-xs font-semibold text-amber-300">{t('payment.addressLoading')}</p>
             )}
 
             {tronReceiveAddress ? (
@@ -295,17 +295,17 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
                 <p className="mt-3 break-all rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-300">{tronReceiveAddress}</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => void copyReceiveAddress()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-3 py-2.5 text-xs font-bold text-zinc-200 transition hover:border-primary hover:text-white">
-                    <Copy className="h-3.5 w-3.5" /> {addressCopied ? 'Copied' : 'Copy address'}
+                    <Copy className="h-3.5 w-3.5" /> {addressCopied ? t('payment.copied') : t('payment.copyAddress')}
                   </button>
                   <button type="button" onClick={() => openWallet()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-3 py-2.5 text-xs font-bold text-zinc-200 transition hover:border-primary hover:text-white">
-                    <ExternalLink className="h-3.5 w-3.5" /> Open wallet
+                    <ExternalLink className="h-3.5 w-3.5" /> {t('payment.openWallet')}
                   </button>
                 </div>
               </>
             ) : null}
           </section>
 
-          <p className="text-center text-[11px] leading-relaxed text-zinc-500">Only send USDT on the TRON / TRC20 network. Keep enough TRX in your wallet for network fees.</p>
+          <p className="text-center text-[11px] leading-relaxed text-zinc-500">{t('payment.networkNotice')}</p>
         </main>
       </div>
 
@@ -314,8 +314,8 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
           <section className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-lg font-extrabold">Choose a wallet</p>
-                <p className="mt-1 text-xs text-zinc-500">Your wallet app will open on the TRON payment page.</p>
+                <p className="text-lg font-extrabold">{t('payment.chooseWallet')}</p>
+                <p className="mt-1 text-xs text-zinc-500">{t('payment.walletHintApp')}</p>
               </div>
               <button type="button" onClick={() => setShowWalletPicker(false)} aria-label="Close wallet selection" className="rounded-full p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
@@ -327,7 +327,7 @@ export const PaymentConfirm: FC<PaymentConfirmProps> = ({ staffList, onClose }) 
                 </button>
               ))}
             </div>
-            <p className="mt-4 text-center text-[11px] leading-relaxed text-zinc-500">After the wallet opens, review the amount and approve the transaction there.</p>
+            <p className="mt-4 text-center text-[11px] leading-relaxed text-zinc-500">{t('payment.walletReview')}</p>
           </section>
         </div>
       ) : null}

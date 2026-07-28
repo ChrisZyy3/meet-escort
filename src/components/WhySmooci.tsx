@@ -1,4 +1,5 @@
 import type { FC } from 'react';
+import { useTranslation } from '../i18n';
 
 /**
  * WhySmooci Component
@@ -9,8 +10,10 @@ import type { FC } from 'react';
  * Detailed annotations added in compliance with rule guidelines.
  */
 export const WhySmooci: FC = () => {
+  const { t } = useTranslation();
+
   return (
-    <section className="bg-white py-12 md:py-16 border-t border-gray-100">
+    <section data-reveal className="bg-white py-12 md:py-16 border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4">
         
         {/* Core Layout Grid */}
@@ -21,10 +24,10 @@ export const WhySmooci: FC = () => {
           {/* 第一点：安全保护 */}
           <div className="space-y-2">
             <h5 className="text-lg font-bold text-neutral-dark">
-              Safety
+              {t('why.safety')}
             </h5>
             <p className="text-sm text-neutral-light leading-relaxed">
-              Sophisticated anti-trafficking features, flagging, removing, and reporting suspect escort accounts.
+              {t('why.safetyDescription')}
             </p>
           </div>
 
@@ -32,10 +35,10 @@ export const WhySmooci: FC = () => {
           {/* 第二点：信任建设 */}
           <div className="space-y-2">
             <h5 className="text-lg font-bold text-neutral-dark">
-              Trust
+              {t('why.trust')}
             </h5>
             <p className="text-sm text-neutral-light leading-relaxed">
-              No pay to rank profiles. Escorts are listed by reputation and feedback, not by who pays the most.
+              {t('why.trustDescription')}
             </p>
           </div>
 
@@ -43,10 +46,10 @@ export const WhySmooci: FC = () => {
           {/* 第三点：隐私删除 */}
           <div className="space-y-2">
             <h5 className="text-lg font-bold text-neutral-dark">
-              Privacy
+              {t('why.privacy')}
             </h5>
             <p className="text-sm text-neutral-light leading-relaxed">
-              Routine data deletion and privacy filters, help us ensure utmost discretion and protect user anonymity.
+              {t('why.privacyDescription')}
             </p>
           </div>
 
@@ -54,10 +57,10 @@ export const WhySmooci: FC = () => {
           {/* 第四点：快捷客服 */}
           <div className="space-y-2">
             <h5 className="text-lg font-bold text-neutral-dark">
-              Support
+              {t('why.support')}
             </h5>
             <p className="text-sm text-neutral-light leading-relaxed">
-              Our dedicated client support team responds quickly to all clients regardless of their premium status.
+              {t('why.supportDescription')}
             </p>
           </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { HelloBar } from './components/HelloBar';
 import { CookieBanner } from './components/CookieBanner';
 import { Navbar } from './components/Navbar';
@@ -31,6 +31,7 @@ import { PaymentConfirm } from './components/PaymentConfirm';
 import { AuthModal } from './components/AuthModal';
 import { Toast, type ToastKind } from './components/Toast';
 import { ChatWidget } from './components/ChatWidget';
+import { useTranslation } from './i18n';
 
 const FAVORITES_STORAGE_KEY = 'meet_escort_favorite_ids';
 
@@ -50,6 +51,7 @@ const loadFavoriteIds = (): Set<number> => {
  * Orchestrates layout components, executes API synchronization, and handles details routing.
  */
 export default function App() {
+  const { t } = useTranslation();
   // Service personnel listing data state
   // 服务人员列表数据状态
   const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -78,6 +80,81 @@ export default function App() {
     }
     return 'main';
   });
+
+  const hasBlockingOverlay = currentPage === 'payment-confirm'
+    || Boolean(selectedStaff)
+    || isMeetFlowOpen
+    || isFavoritesOpen
+    || isAuthOpen;
+
+  const clearProfileUrl = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('staffId');
+    if (url.searchParams.get('page') === 'profile') {
+      url.searchParams.delete('page');
+    }
+    window.history.replaceState(null, '', url.toString());
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    clearProfileUrl();
+    setSelectedStaff(null);
+  }, [clearProfileUrl]);
+
+  const handleClosePayment = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('page');
+    url.searchParams.delete('walletId');
+    url.searchParams.delete('staffId');
+    window.history.replaceState(null, '', url.toString());
+    setCurrentPage('main');
+  }, []);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    if (hasBlockingOverlay) document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [hasBlockingOverlay]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (document.querySelector('.profile-photo-lightbox')) return;
+      setIsAuthOpen(false);
+      setIsFavoritesOpen(false);
+      setIsMeetFlowOpen(false);
+      if (currentPage === 'payment-confirm') {
+        handleClosePayment();
+      } else if (selectedStaff) {
+        handleCloseModal();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [currentPage, selectedStaff, handleCloseModal, handleClosePayment]);
+
+  useEffect(() => {
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion || !('IntersectionObserver' in window)) {
+      elements.forEach((element) => element.classList.add('is-visible'));
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
+
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
 
   // Watch for history state/popstate events to sync navigation changes
   // 监听浏览器历史状态变化，同步当前路由页面状态
@@ -170,31 +247,13 @@ export default function App() {
 
   // Close profile detail modal
   // 关闭详情对话框
-  const handleCloseModal = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('staffId');
-    if (url.searchParams.get('page') === 'profile') {
-      url.searchParams.delete('page');
-    }
-    window.history.replaceState(null, '', url.toString());
-    setSelectedStaff(null);
-  };
-
   // If currently routed to the payment confirmation screen, render it full screen
   // 如果当前路由跳转到了支付确认页面，则全屏渲染该组件并挂载对应的返回回调
   if (currentPage === 'payment-confirm') {
     return (
       <PaymentConfirm 
         staffList={staffList}
-        onClose={() => {
-          // Clean history parameters and switch back to DApp main homepage
-          // 剔除 URL 中的 page 及 walletId 历史参数，切换回主页面显示
-          const url = new URL(window.location.href);
-          url.searchParams.delete('page');
-          url.searchParams.delete('walletId');
-          window.history.replaceState(null, '', url.toString());
-          setCurrentPage('main');
-        }}
+        onClose={handleClosePayment}
       />
     );
   }
@@ -213,7 +272,7 @@ export default function App() {
         onLogoutClick={async () => {
           await logoutUser();
           setAuthUser(null);
-          showToast('You have been logged out.');
+          showToast(t('nav.logout'));
         }}
       />
 
@@ -307,7 +366,7 @@ export default function App() {
           onError={(message) => showToast(message, 'error')}
           onAuthenticated={(session, mode) => {
             setAuthUser(session.user);
-            showToast(mode === 'register' ? 'Account created successfully.' : 'Successfully signed in.');
+            showToast(mode === 'register' ? t('auth.accountCreated') : t('auth.loginSuccess'));
           }}
         />
       )}

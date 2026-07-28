@@ -10,6 +10,7 @@ import { connectInjectedTronWallet, detectInjectedWalletId, isInjectedWalletBrow
 import { BookingRequestFlow } from './BookingRequestFlow';
 import type { BookingDetails } from './BookingRequestFlow';
 import { fetchStaffComments, resolveMediaUrl } from '../services/api';
+import { useTranslation } from '../i18n';
 
 interface StaffDetailProps {
   staff: Staff | null;
@@ -36,6 +37,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
   isFavorite = false,
   onToggleFavorite
 }) => {
+  const { t, language } = useTranslation();
   const [detailData, setDetailData] = useState<Staff | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -441,8 +443,8 @@ export const StaffDetail: FC<StaffDetailProps> = ({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Back to directory"
-          title="Back to directory"
+          aria-label={t('detail.backDirectory')}
+          title={t('detail.backDirectory')}
           className="profile-detail-back absolute left-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur transition hover:bg-black/70"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -452,9 +454,9 @@ export const StaffDetail: FC<StaffDetailProps> = ({
         {/* 关闭按钮 */}
         <button 
           onClick={onClose}
-          aria-label="Close profile details"
+          aria-label={t('detail.close')}
           className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white text-2xl font-bold cursor-pointer transition-colors duration-200"
-          title="Close details"
+          title={t('detail.close')}
         >
           &times;
         </button>
@@ -483,34 +485,34 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                   }}
                   role="button"
                   tabIndex={0}
-                  aria-label="Open photo fullscreen preview"
+                  aria-label={t('detail.openFullscreen')}
                 />
               ) : (
                 <div className="w-full h-full flex flex-col justify-center items-center bg-primary/5 text-primary text-4xl font-extrabold">
                   {staff.name.charAt(0).toUpperCase()}
-                  <span className="text-sm font-semibold text-neutral-light mt-2">No Photo</span>
+                  <span className="text-sm font-semibold text-neutral-light mt-2">{t('detail.noPhoto')}</span>
                 </div>
               )}
             </div>
             <div className="absolute left-20 right-20 top-4 flex items-center justify-between">
               <button
                 onClick={() => onToggleFavorite?.(staff.id)}
-                aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                aria-label={isFavorite ? t('detail.removeFavorite') : t('detail.addFavorite')}
                 className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition ${isFavorite ? 'bg-primary text-white' : 'bg-white/85 text-neutral-dark hover:bg-white'}`}
               >
                 <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
               </button>
-              <button onClick={handleShare} aria-label="Share profile" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-neutral-dark backdrop-blur transition hover:bg-white">
+              <button onClick={handleShare} aria-label={t('detail.share')} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-neutral-dark backdrop-blur transition hover:bg-white">
                 <Share2 className="h-5 w-5" />
               </button>
             </div>
 
             {galleryPhotos.length > 1 && (
               <>
-                <button type="button" onClick={showPreviousPhoto} aria-label="Previous photo" className="profile-detail-gallery__nav profile-detail-gallery__nav--previous">
+                <button type="button" onClick={showPreviousPhoto} aria-label={t('detail.previousPhoto')} className="profile-detail-gallery__nav profile-detail-gallery__nav--previous">
                   <ChevronLeft className="h-5 w-5" />
                 </button>
-                <button type="button" onClick={showNextPhoto} aria-label="Next photo" className="profile-detail-gallery__nav profile-detail-gallery__nav--next">
+                <button type="button" onClick={showNextPhoto} aria-label={t('detail.nextPhoto')} className="profile-detail-gallery__nav profile-detail-gallery__nav--next">
                   <ChevronRight className="h-5 w-5" />
                 </button>
                 <span className="profile-detail-gallery__counter">{activePhotoIndex + 1} / {galleryPhotos.length}</span>
@@ -519,11 +521,11 @@ export const StaffDetail: FC<StaffDetailProps> = ({
 
             <div className="profile-detail-gallery__caption">
               <div>
-                <span className="profile-detail-gallery__status"><span />{profile.isActive ? 'Online now' : 'Offline'}</span>
+                <span className="profile-detail-gallery__status"><span />{profile.isActive ? t('detail.onlineNow') : t('common.offline')}</span>
                 <h1>{profile.name}{profile.age ? `, ${profile.age}` : ''}</h1>
                 <p>{cityLabel}{countryLabel ? `, ${countryLabel}` : ''}</p>
               </div>
-              <strong>{profile.price ? `$${profile.price.toFixed(2)}` : 'Price on request'}<small>{profile.price ? ' / hr' : ''}</small></strong>
+              <strong>{profile.price ? `$${profile.price.toFixed(2)}` : t('detail.priceRequest')}<small>{profile.price ? ' / hr' : ''}</small></strong>
             </div>
 
             {galleryPhotos.length > 1 && (
@@ -549,13 +551,13 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               <div className="hidden flex items-center justify-between gap-4 mb-4">
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse" />
-                  Online Now
+                  {t('detail.onlineNow')}
                 </span>
                 
                 {/* Price Display */}
                 {/* 价格 */}
                 <span className="text-lg md:text-xl font-extrabold text-primary">
-                  {profile.price ? `$${profile.price.toFixed(2)} / hr` : 'Price on request'}
+                  {profile.price ? `$${profile.price.toFixed(2)} / hr` : t('detail.priceRequest')}
                 </span>
               </div>
 
@@ -568,48 +570,48 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               {/* Description bio text */}
               {/* 简介 / 描述 */}
               <div className="mb-6">
-                <h3 className="mb-2 text-xs font-extrabold uppercase tracking-[0.16em] text-primary">About</h3>
+                <h3 className="mb-2 text-xs font-extrabold uppercase tracking-[0.16em] text-primary">{t('detail.about')}</h3>
                 <p className="profile-detail-content__bio text-sm md:text-base leading-relaxed whitespace-pre-line">
                 {loading
-                  ? 'Loading details...'
-                  : (profile.details || profile.description || profile.preferences || 'No description provided.')}
+                  ? t('detail.loading')
+                  : (profile.details || profile.description || profile.preferences || t('detail.noDescription'))}
                 </p>
               </div>
 
               <div className="mb-6 grid grid-cols-2 gap-3 rounded-2xl bg-neutral-bgLight p-4 text-sm">
-                <ProfileItem label="City" value={cityLabel} />
-                {countryLabel ? <ProfileItem label="Country" value={countryLabel} /> : <ProfileItem label="Country" value="Not provided" />}
-                <ProfileItem label="Availability" value={profile.isActive ? 'Online now' : 'Offline'} />
-                <ProfileItem label="Services" value="Not provided" />
-                {profile.createdAt && <ProfileItem label="Member since" value={new Date(profile.createdAt).toLocaleDateString()} />}
-                {profile.preferences ? <ProfileItem label="Preferences" value={profile.preferences} /> : <ProfileItem label="Response time" value="Not provided" />}
-                {profile.size ? <ProfileItem label="Measurements" value={profile.size} /> : null}
+                <ProfileItem label={t('detail.city')} value={cityLabel} />
+                {countryLabel ? <ProfileItem label={t('detail.country')} value={countryLabel} /> : <ProfileItem label={t('detail.country')} value={t('detail.notProvided')} />}
+                <ProfileItem label={t('detail.availability')} value={profile.isActive ? t('detail.onlineNow') : t('common.offline')} />
+                <ProfileItem label={t('detail.services')} value={t('detail.notProvided')} />
+                {profile.createdAt && <ProfileItem label={t('detail.memberSince')} value={new Date(profile.createdAt).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US')} />}
+                {profile.preferences ? <ProfileItem label={t('detail.preferences')} value={profile.preferences} /> : <ProfileItem label={t('detail.responseTime')} value={t('detail.notProvided')} />}
+                {profile.size ? <ProfileItem label={t('detail.measurements')} value={profile.size} /> : null}
               </div>
 
               <div className="mb-6 grid grid-cols-3 gap-3">
-                <div className="rounded-xl border border-gray-100 p-3 text-center"><Star className="mx-auto h-4 w-4 fill-yellow-400 text-yellow-400" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{rating}</p><p className="text-[10px] text-neutral-light">{reviewCount} reviews</p></div>
+                <div className="rounded-xl border border-gray-100 p-3 text-center"><Star className="mx-auto h-4 w-4 fill-yellow-400 text-yellow-400" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{rating}</p><p className="text-[10px] text-neutral-light">{t('card.reviews', { count: reviewCount })}</p></div>
                 <div className="rounded-xl border border-gray-100 p-3 text-center"><Ruler className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-sm font-extrabold text-neutral-dark">{height ? `${height} cm` : '—'}</p><p className="text-[10px] text-neutral-light">{bodyType || 'Body'}</p></div>
                 <div className="rounded-xl border border-gray-100 p-3 text-center"><Languages className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 text-xs font-extrabold text-neutral-dark">{languagesLabel || '—'}</p><p className="mt-1 text-[10px] text-neutral-light">Languages</p></div>
               </div>
 
               <section className="mb-6 border-t border-gray-100 pt-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <h4 className="text-base font-extrabold text-neutral-dark">Reviews</h4>
-                  <span className="text-xs font-semibold text-neutral-light">Newest first</span>
+                  <h4 className="text-base font-extrabold text-neutral-dark">{t('detail.reviews')}</h4>
+                  <span className="text-xs font-semibold text-neutral-light">{t('detail.newestFirst')}</span>
                 </div>
                 {commentsLoading ? (
-                  <p className="text-sm text-neutral-light">Loading reviews...</p>
+                  <p className="text-sm text-neutral-light">{t('detail.loadingReviews')}</p>
                 ) : commentsError ? (
                   <p className="text-sm text-neutral-light">{commentsError}</p>
                 ) : comments.length === 0 ? (
-                  <p className="rounded-xl bg-neutral-bgLight px-4 py-3 text-sm text-neutral-light">No reviews yet.</p>
+                  <p className="rounded-xl bg-neutral-bgLight px-4 py-3 text-sm text-neutral-light">{t('detail.noReviews')}</p>
                 ) : (
                   <div className="space-y-3">
                     {comments.map((comment) => (
                       <article key={comment.id} className="rounded-xl bg-neutral-bgLight p-4">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-bold text-neutral-dark">{comment.author}</p>
-                          <time className="shrink-0 text-xs text-neutral-light">{new Date(comment.createdAt).toLocaleDateString()}</time>
+                          <time className="shrink-0 text-xs text-neutral-light">{new Date(comment.createdAt).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US')}</time>
                         </div>
                         <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-neutral-medium">{comment.content}</p>
                       </article>
@@ -622,7 +624,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               {/* 细节元数据 */}
               <div className="text-xs text-neutral-light dark:text-zinc-500 space-y-1 mb-8">
                 {profile.createdAt && (
-                  <div>Registered on: {new Date(profile.createdAt).toLocaleDateString()}</div>
+                  <div>{t('detail.registeredOn')}: {new Date(profile.createdAt).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US')}</div>
                 )}
                 {error && <div className="text-red-500 font-semibold">{error}</div>}
               </div>
@@ -648,7 +650,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 >
                   {isPaid ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
                   <span>
-                    {(isPaid ? 'Call Now: ' : 'Unlock Call Now: ') + (() => {
+                    {(isPaid ? t('detail.callNow') : t('detail.unlockCall')) + (() => {
                       const phone = profile.phone!.trim();
                       if (isPaid) return phone;
                       if (phone.length <= 4) return phone;
@@ -666,7 +668,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                   className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-hellobar hover:opacity-90 text-white font-bold py-3.5 px-6 rounded-full shadow-lg shadow-hellobar/20 transition-all duration-200 cursor-pointer border-none"
                 >
                   <CalendarDays className="w-4 h-4" />
-                  <span>Send booking request</span>
+                  <span>{t('detail.sendBooking')}</span>
                 </button>
               )}
             </div>
@@ -749,10 +751,10 @@ export const StaffDetail: FC<StaffDetailProps> = ({
             {/* 头部图标与说明 */}
             <Lock className="w-12 h-12 text-primary mx-auto mb-4 animate-bounce" />
             <h4 className="text-xl md:text-2xl font-extrabold mb-2 tracking-tight text-white">
-              {isBookingLaunch ? 'Pay booking request' : 'Unlock contact number'}
+              {isBookingLaunch ? t('detail.payBooking') : t('detail.unlockContact')}
             </h4>
             <p className="text-zinc-400 text-xs md:text-sm mb-6 leading-relaxed">
-              Choose a wallet connection method. You can connect a wallet in this browser, open a wallet app, or continue with a QR code.
+              {t('detail.walletDescription')}
             </p>
 
             <button
@@ -762,7 +764,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               className="mb-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/50 bg-primary/10 px-4 py-3 text-sm font-bold text-primary transition hover:bg-primary/20 disabled:cursor-wait disabled:opacity-60"
             >
               <MonitorSmartphone className="h-5 w-5" />
-              {browserWalletConnecting ? 'Connecting browser wallet...' : 'Connect current browser wallet'}
+              {browserWalletConnecting ? t('detail.connectingBrowser') : t('detail.connectBrowser')}
             </button>
             {browserWalletError ? <p className="mb-4 rounded-xl border border-red-900/40 bg-red-950/30 px-3 py-2 text-xs font-semibold text-red-300">{browserWalletError}</p> : null}
 
@@ -772,7 +774,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               className="mb-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-bold text-zinc-200 transition hover:border-primary/60 hover:text-white"
             >
               <QrCode className="h-5 w-5 text-primary" />
-              Continue with QR code or copy address
+              {t('detail.qrContinue')}
             </button>
             
             {/* Wallet Selection Grid */}
@@ -852,10 +854,10 @@ export const StaffDetail: FC<StaffDetailProps> = ({
             </button>
             
             <h4 className="text-xl md:text-2xl font-extrabold mb-2 tracking-tight text-white text-center">
-              Book Outcall Service
+              {t('detail.bookingService')}
             </h4>
             <p className="text-zinc-400 text-xs md:text-sm mb-6 text-center">
-              Please enter your service details. A deposit of 1.00 USDT is required to confirm booking.
+              {t('detail.bookingNotice')}
             </p>
 
             <form 
@@ -885,7 +887,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">
                   {/* Select the appointment date and time */}
                   {/* 预约具体时间 */}
-                  Date & Time
+                  {t('detail.dateTime')}
                 </label>
                 <input 
                   type="datetime-local" 
@@ -902,7 +904,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">
                   {/* Enter service address/location details */}
                   {/* 预约服务地点 */}
-                  Service Address
+                  {t('detail.serviceAddress')}
                 </label>
                 <input 
                   type="text" 
@@ -920,17 +922,17 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">
                   {/* Select duration of the booking */}
                   {/* 预约服务时长 */}
-                  Duration
+                  {t('detail.bookingDuration')}
                 </label>
                 <select 
                   value={bookingDuration}
                   onChange={(e) => setBookingDuration(e.target.value)}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition-colors"
                 >
-                  <option value="1h">1 Hour</option>
-                  <option value="2h">2 Hours</option>
-                  <option value="3h">3 Hours</option>
-                  <option value="overnight">Overnight</option>
+                  <option value="1h">1 {t('detail.hour')}</option>
+                  <option value="2h">2 {t('detail.hours')}</option>
+                  <option value="3h">3 {t('detail.hours')}</option>
+                  <option value="overnight">{t('detail.overnight')}</option>
                 </select>
               </div>
 
@@ -940,7 +942,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">
                   {/* Enter telegram handle or phone contact details */}
                   {/* 预约人联系方式 */}
-                  Telegram or Phone
+                  {t('detail.telegramPhone')}
                 </label>
                 <input 
                   type="text" 
@@ -955,7 +957,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
               {/* Deposit notice */}
               {/* 定金提示 */}
               <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-[10px] text-primary/90 text-center font-bold">
-                Booking Deposit Due: 1.00 USDT
+                {t('detail.bookingDeposit')}
               </div>
 
               {/* Submit CTA */}
@@ -964,7 +966,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 type="submit"
                 className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3.5 px-6 rounded-full shadow-lg hover:shadow-primary/20 transition-all duration-300 cursor-pointer text-sm"
               >
-                Confirm & Pay Deposit
+                {t('detail.confirmDeposit')}
               </button>
             </form>
           </div>

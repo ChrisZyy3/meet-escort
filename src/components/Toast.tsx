@@ -1,5 +1,6 @@
 import { useEffect, type FC } from 'react';
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export type ToastKind = 'success' | 'error';
 
@@ -10,6 +11,7 @@ interface ToastProps {
 }
 
 export const Toast: FC<ToastProps> = ({ message, kind = 'success', onClose }) => {
+  const { t } = useTranslation();
   useEffect(() => {
     const timer = window.setTimeout(onClose, 3500);
     return () => window.clearTimeout(timer);
@@ -28,7 +30,7 @@ export const Toast: FC<ToastProps> = ({ message, kind = 'success', onClose }) =>
       >
         {isSuccess ? <CheckCircle2 className="h-5 w-5 shrink-0" /> : <AlertCircle className="h-5 w-5 shrink-0" />}
         <span className="flex-1 text-sm font-bold">{message}</span>
-        <button type="button" onClick={onClose} className="rounded-full p-1 opacity-70 transition hover:bg-black/5 hover:opacity-100" aria-label="Close notification">
+        <button type="button" onClick={onClose} className="rounded-full p-1 opacity-70 transition hover:bg-black/5 hover:opacity-100" aria-label={t('common.close')}>
           <X className="h-4 w-4" />
         </button>
       </div>

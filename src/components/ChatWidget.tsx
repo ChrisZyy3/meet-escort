@@ -3,6 +3,7 @@ import type { CSSProperties, FC, FormEvent } from 'react';
 import { ArrowLeft, Headset, LoaderCircle, Minimize2, Paperclip, Send, X } from 'lucide-react';
 import type { AuthUser, ChatMessage } from '../types';
 import { API_BASE_URL, fetchChatMessages, resolveMediaUrl, sendChatMessage } from '../services/api';
+import { useTranslation } from '../i18n';
 
 interface ChatWidgetProps {
   user: AuthUser | null;
@@ -26,6 +27,7 @@ const formatMessageTime = (value: string): string => {
 };
 
 export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, onLoginClick }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
@@ -201,20 +203,20 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
         <section className="chat-widget__panel" style={panelStyle} role="dialog" aria-modal="false" aria-labelledby="chat-widget-title">
           <header className="chat-widget__header">
             <div className="chat-widget__header-main">
-              <button type="button" className="chat-widget__mobile-back" onClick={() => setIsExpanded(false)} aria-label="Close support chat">
+              <button type="button" className="chat-widget__mobile-back" onClick={() => setIsExpanded(false)} aria-label={t('common.close')}>
                 <ArrowLeft aria-hidden="true" />
               </button>
               <span className="chat-widget__avatar" aria-hidden="true"><Headset /></span>
               <div>
-                <h2 id="chat-widget-title">Support chat</h2>
-                <p><span className="chat-widget__online-dot" /> Usually replies within a few minutes</p>
+                <h2 id="chat-widget-title">{t('chat.title')}</h2>
+                <p><span className="chat-widget__online-dot" /> {t('chat.replyTime')}</p>
               </div>
             </div>
             <div className="chat-widget__header-actions">
-              <button type="button" className="chat-widget__icon-button chat-widget__desktop-only" onClick={() => setIsExpanded(false)} aria-label="Minimize support chat" title="Minimize support chat">
+              <button type="button" className="chat-widget__icon-button chat-widget__desktop-only" onClick={() => setIsExpanded(false)} aria-label={t('chat.support')} title={t('chat.support')}>
                 <Minimize2 aria-hidden="true" />
               </button>
-              <button type="button" className="chat-widget__icon-button" onClick={() => setIsExpanded(false)} aria-label="Close support chat" title="Close support chat">
+              <button type="button" className="chat-widget__icon-button" onClick={() => setIsExpanded(false)} aria-label={t('common.close')} title={t('common.close')}>
                 <X aria-hidden="true" />
               </button>
             </div>
@@ -223,19 +225,19 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
           {!user ? (
             <div className="chat-widget__auth-state">
               <span className="chat-widget__auth-icon"><Headset /></span>
-              <h3>Sign in to contact support</h3>
-              <p>Your conversation stays linked to your account across devices.</p>
-              <button type="button" className="chat-widget__primary-button" onClick={onLoginClick}>Sign in</button>
+              <h3>{t('chat.contactSupport')}</h3>
+              <p>{t('chat.accountLinked')}</p>
+              <button type="button" className="chat-widget__primary-button" onClick={onLoginClick}>{t('chat.signIn')}</button>
             </div>
           ) : (
             <>
-              <div className="chat-widget__messages" aria-live="polite" aria-label="Support messages">
-                {isLoading ? <LoaderCircle className="chat-widget__loader" aria-label="Loading messages" /> : null}
+              <div className="chat-widget__messages" aria-live="polite" aria-label={t('chat.support')}>
+                {isLoading ? <LoaderCircle className="chat-widget__loader" aria-label={t('common.loading')} /> : null}
                 {!isLoading && messages.length === 0 ? (
                   <div className="chat-widget__empty-state">
                     <span className="chat-widget__empty-icon"><Headset /></span>
-                    <strong>How can we help?</strong>
-                    <span>Send us a message and our team will get back to you.</span>
+                    <strong>{t('chat.help')}</strong>
+                    <span>{t('chat.empty')}</span>
                   </div>
                 ) : null}
                 {messages.map((message) => {
@@ -245,7 +247,7 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
                       <div className="chat-widget__message-bubble">
                         {!isUserMessage && message.adminName ? <span className="chat-widget__message-author">{message.adminName}</span> : null}
                         {message.content ? <p>{message.content}</p> : null}
-                        {message.fileUrl ? <a href={resolveMediaUrl(message.fileUrl, API_BASE_URL)} target="_blank" rel="noreferrer" className="chat-widget__file-link"><Paperclip aria-hidden="true" /> Attached file</a> : null}
+                        {message.fileUrl ? <a href={resolveMediaUrl(message.fileUrl, API_BASE_URL)} target="_blank" rel="noreferrer" className="chat-widget__file-link"><Paperclip aria-hidden="true" /> {t('chat.attachedFile')}</a> : null}
                         <time dateTime={message.createdAt}>{formatMessageTime(message.createdAt)}</time>
                       </div>
                     </article>
@@ -261,25 +263,25 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     maxLength={2000}
-                    placeholder="Write a message..."
-                    aria-label="Message support"
+                    placeholder={t('chat.writeMessage')}
+                    aria-label={t('chat.messageSupport')}
                     disabled={isSending}
                   />
-                  <button type="submit" className="chat-widget__send-button" disabled={!draft.trim() || isSending} aria-label="Send message" title="Send message">
+                  <button type="submit" className="chat-widget__send-button" disabled={!draft.trim() || isSending} aria-label={t('chat.sendMessage')} title={t('chat.sendMessage')}>
                     {isSending ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
                   </button>
                 </div>
-                <span className="chat-widget__composer-note">Support can only receive text messages here.</span>
+                <span className="chat-widget__composer-note">{t('chat.textOnly')}</span>
               </form>
             </>
           )}
         </section>
       ) : null}
 
-      <button type="button" className="chat-widget__launcher" onClick={() => setIsExpanded(true)} aria-label="Open support chat" title="Open support chat">
+      <button type="button" className="chat-widget__launcher" onClick={() => setIsExpanded(true)} aria-label={t('chat.open')} title={t('chat.open')}>
         <Headset aria-hidden="true" />
-        <span>Support</span>
-        {unreadCount > 0 ? <b className="chat-widget__unread-badge" aria-label={`${unreadCount} unread messages`}>{unreadCount > 9 ? '9+' : unreadCount}</b> : null}
+        <span>{t('chat.support')}</span>
+        {unreadCount > 0 ? <b className="chat-widget__unread-badge" aria-label={t('chat.unread', { count: unreadCount })}>{unreadCount > 9 ? '9+' : unreadCount}</b> : null}
       </button>
     </div>
   );

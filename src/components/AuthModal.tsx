@@ -2,6 +2,7 @@ import { useEffect, useState, type FC, type FormEvent } from 'react';
 import { CheckCircle2, Loader2, LogIn, UserPlus, X } from 'lucide-react';
 import type { AuthSession } from '../types';
 import { loginUser, registerUser } from '../services/api';
+import { useTranslation } from '../i18n';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -15,6 +16,7 @@ type AuthMode = 'login' | 'register';
  * Email/password login + register modal backed by /api/auth/*.
  */
 export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onError }) => {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,11 +37,11 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      setError('Please enter a valid email address.');
+      setError(t('auth.validEmail'));
       return;
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      setError(t('auth.passwordLength'));
       return;
     }
 
@@ -50,12 +52,12 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
           ? await loginUser(trimmedEmail, password)
           : await registerUser(trimmedEmail, password);
       onAuthenticated(session, mode);
-      setSuccessMessage(mode === 'login' ? 'Login successful' : 'Account created successfully');
+      setSuccessMessage(mode === 'login' ? t('auth.loginSuccess') : t('auth.accountCreated'));
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { msg?: string } }; message?: string })?.response?.data?.msg ||
         (err as { message?: string })?.message ||
-        (mode === 'login' ? 'Login failed.' : 'Registration failed.');
+        (mode === 'login' ? t('auth.loginFailed') : t('auth.registrationFailed'));
       setError(message);
       onError?.(message);
     } finally {
@@ -75,7 +77,7 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
           type="button"
           onClick={onClose}
           className="absolute right-4 top-4 rounded-full p-2 text-neutral-light transition hover:bg-neutral-bgLight hover:text-neutral-dark"
-          aria-label="Close"
+          aria-label={t('common.close')}
         >
           <X className="h-5 w-5" />
         </button>
@@ -86,10 +88,10 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
           </div>
           <div>
             <h2 id="auth-modal-title" className="text-xl font-extrabold text-neutral-dark">
-              {mode === 'login' ? 'Welcome back' : 'Create account'}
+              {mode === 'login' ? t('auth.welcomeBack') : t('auth.createAccount')}
             </h2>
             <p className="text-sm text-neutral-light">
-              {mode === 'login' ? 'Sign in with your email' : 'Register with email — no verification needed'}
+              {mode === 'login' ? t('auth.signInEmail') : t('auth.registerEmail')}
             </p>
           </div>
         </div>
@@ -101,7 +103,7 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
             </div>
             <h3 className="text-xl font-extrabold text-emerald-800">{successMessage}</h3>
             <p className="mt-2 text-sm font-semibold text-emerald-700">
-              {mode === 'login' ? 'Welcome back. You are now signed in.' : 'Your account is ready to use.'}
+              {mode === 'login' ? t('auth.signedIn') : t('auth.accountReady')}
             </p>
           </div>
         ) : (
@@ -117,7 +119,7 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
               mode === 'login' ? 'bg-white text-primary shadow-sm' : 'text-neutral-medium hover:text-neutral-dark'
             }`}
           >
-            Login
+            {t('nav.login')}
           </button>
           <button
             type="button"
@@ -129,13 +131,13 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
               mode === 'register' ? 'bg-white text-primary shadow-sm' : 'text-neutral-medium hover:text-neutral-dark'
             }`}
           >
-            Register
+            {t('auth.register')}
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-neutral-light">Email</span>
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-neutral-light">{t('auth.email')}</span>
             <input
               type="email"
               autoComplete="email"
@@ -148,13 +150,13 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-neutral-light">Password</span>
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-neutral-light">{t('auth.password')}</span>
             <input
               type="password"
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
+              placeholder={t('auth.passwordPlaceholder')}
               minLength={6}
               className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-dark outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               required
@@ -173,7 +175,7 @@ export const AuthModal: FC<AuthModalProps> = ({ onClose, onAuthenticated, onErro
             className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3.5 text-sm font-extrabold text-white shadow-lg shadow-primary/20 transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {submitting ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+            {submitting ? t('auth.pleaseWait') : mode === 'login' ? t('auth.signIn') : t('auth.create')}
           </button>
         </form>
           </>

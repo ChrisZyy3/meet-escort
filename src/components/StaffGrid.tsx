@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Heart, SlidersHorizontal, Users } from 'lucide-react';
 import type { SearchCriteria, Staff } from '../types';
 import { StaffCard } from './StaffCard';
+import { useTranslation } from '../i18n';
 
 interface StaffGridProps {
   staffList: Staff[];
@@ -28,6 +29,7 @@ export function StaffGrid({
   onToggleFavorite,
   onShowFavorites,
 }: StaffGridProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('recommended');
 
@@ -65,46 +67,46 @@ export function StaffGrid({
   }, [criteria, query, sortBy, staffList]);
 
   return (
-    <section id="directory" className={`directory-section ${resultsMode ? 'directory-section--results' : ''}`}>
+    <section data-reveal id="directory" className={`directory-section ${resultsMode ? 'directory-section--results' : ''}`}>
       <div className="site-container">
         <div className="directory-section__heading">
           <div>
-            <p className="section-kicker"><Users aria-hidden="true" /> Live directory</p>
-            <h2>{resultsMode ? `Available in ${criteria?.city ?? 'your area'}` : 'Companion directory'}</h2>
-            <p>{resultsMode ? `${visibleStaff.length} profiles match your request` : 'Profiles and availability from the live API.'}</p>
+            <p className="section-kicker"><Users aria-hidden="true" /> {t('directory.live')}</p>
+            <h2>{resultsMode ? t('directory.availableIn', { city: criteria?.city ?? 'your area' }) : t('directory.title')}</h2>
+            <p>{resultsMode ? t('directory.matchCount', { count: visibleStaff.length }) : t('directory.subtitle')}</p>
           </div>
           <div className="directory-controls">
-            {onShowFavorites && <button type="button" onClick={onShowFavorites} className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-neutral-dark transition hover:border-primary hover:text-primary"><Heart className={`h-4 w-4 ${favoriteIds.size ? 'fill-primary text-primary' : ''}`} /> Favorites ({favoriteIds.size})</button>}
+            {onShowFavorites && <button type="button" onClick={onShowFavorites} className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-neutral-dark transition hover:border-primary hover:text-primary"><Heart className={`h-4 w-4 ${favoriteIds.size ? 'fill-primary text-primary' : ''}`} /> {t('directory.favorites', { count: favoriteIds.size })}</button>}
             <label>
-              <span className="sr-only">Search profiles</span>
+              <span className="sr-only">{t('directory.search')}</span>
               <input
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Name, language, location"
+                placeholder={t('directory.searchPlaceholder')}
               />
             </label>
             <label className="sort-control">
               <SlidersHorizontal aria-hidden="true" />
-              <span className="sr-only">Sort results</span>
+              <span className="sr-only">{t('directory.sort')}</span>
               <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-                <option value="recommended">Recommended</option>
-                <option value="rating">Top rated</option>
-                <option value="price-low">Price: low to high</option>
-                <option value="price-high">Price: high to low</option>
+                <option value="recommended">{t('directory.recommended')}</option>
+                <option value="rating">{t('directory.topRated')}</option>
+                <option value="price-low">{t('directory.priceLow')}</option>
+                <option value="price-high">{t('directory.priceHigh')}</option>
               </select>
             </label>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="staff-grid" aria-label="Loading profiles">
+          <div className="staff-grid" aria-label={t('directory.loading')}>
             {Array.from({ length: 8 }, (_, index) => <div key={index} className="staff-card-skeleton" />)}
           </div>
         ) : errorMessage ? (
           <div className="directory-empty" role="alert">
             <Users aria-hidden="true" />
-            <h3>Profiles are temporarily unavailable</h3>
+            <h3>{t('directory.unavailable')}</h3>
             <p>{errorMessage}</p>
           </div>
         ) : visibleStaff.length ? (
@@ -116,8 +118,8 @@ export function StaffGrid({
         ) : (
           <div className="directory-empty">
             <Users aria-hidden="true" />
-            <h3>No exact matches yet</h3>
-            <p>Try another city, a broader keyword, or turn off “Online now”.</p>
+            <h3>{t('directory.noMatches')}</h3>
+            <p>{t('directory.tryAnother')}</p>
           </div>
         )}
       </div>

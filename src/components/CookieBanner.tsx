@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
+import { useTranslation } from '../i18n';
 
 /**
  * CookieBanner Component
@@ -8,6 +9,7 @@ import type { FC } from 'react';
  * prompting them to confirm they are 18 or older and agree to cookies/terms.
  */
 export const CookieBanner: FC = () => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState<boolean>(false);
 
   useEffect(() => {
@@ -32,30 +34,30 @@ export const CookieBanner: FC = () => {
     <div className="fixed inset-0 bg-white/95 dark:bg-black/95 z-[100] flex flex-col items-center justify-center p-6 text-center animate-fade-in">
       <div className="max-w-md w-full p-8 rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl border border-gray-100 dark:border-zinc-800">
         <h2 className="text-2xl font-bold text-neutral-dark dark:text-white mb-4">
-          Age Verification Required
+          {t('cookie.title')}
         </h2>
         
         {/* Warning text in English & Chinese */}
         {/* 英文及中文年龄验证提示 */}
         <p className="text-sm md:text-base text-neutral-medium dark:text-zinc-300 mb-6 leading-relaxed">
-          By continuing to browse, you accept the{' '}
+          {t('cookie.beforeCookies')}{' '}
           <a 
             href="#privacy" 
             className="text-primary hover:underline font-semibold"
             target="_blank" 
             rel="noopener noreferrer"
           >
-            use of cookies
+            {t('cookie.cookies')}
           </a>{' '}
-          and the{' '}
+          {' '}{t('cookie.betweenLinks')}{' '}
           <a 
             href="#terms" 
             className="text-primary hover:underline font-semibold"
             target="_blank" 
             rel="noopener noreferrer"
           >
-            general conditions
-          </a>.
+            {t('cookie.conditions')}
+          </a>{t('cookie.afterConditions')}
         </p>
 
         {/* Action Button */}
@@ -64,7 +66,7 @@ export const CookieBanner: FC = () => {
           onClick={handleAccept}
           className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-primary/30 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
         >
-          I am 18 years or older
+          {t('cookie.accept')}
         </button>
       </div>
     </div>

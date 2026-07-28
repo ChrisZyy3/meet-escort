@@ -1,4 +1,5 @@
 import type { FC } from 'react';
+import { useTranslation } from '../i18n';
 
 /**
  * FeaturedIn Component
@@ -7,13 +8,14 @@ import type { FC } from 'react';
  * news and media outlets where the project has been featured.
  */
 export const FeaturedIn: FC = () => {
+  const { t } = useTranslation();
   return (
-    <section className="bg-neutral-bgLight py-8 border-y border-gray-100 shadow-inner">
+    <section data-reveal className="bg-neutral-bgLight py-8 border-y border-gray-100 shadow-inner">
       <div className="max-w-7xl mx-auto px-4 text-center">
         {/* Title */}
         {/* 报道媒体标题 */}
         <h2 className="text-xs uppercase tracking-widest text-neutral-light font-bold mb-6">
-          Featured In
+          {t('featured.in')}
         </h2>
 
         {/* Logos container */}

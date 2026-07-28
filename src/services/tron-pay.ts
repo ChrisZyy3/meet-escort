@@ -5,6 +5,7 @@
  */
 
 import acceptorAbi from '../utils/UsdtAccepter.json';
+import { getLanguage as getAppLanguage, translate } from '../i18n';
 
 // Local storage key for tracking member payment status
 // 本地存储中记录用户已支付 VIP 状态的缓存键名
@@ -311,9 +312,9 @@ export function getLanguage(): 'zh' | 'en' {
 // Global translate utility mirroring Vue t() function
 // 全局翻译工具函数，模拟 Vue-I18n 的 t 行为
 export function t(key: string, params?: Record<string, string | number>): string {
-  const lang = getLanguage();
-  const dict = TRANSLATIONS[lang] || TRANSLATIONS.zh;
-  let text = dict[key] || key;
+  const lang = getAppLanguage();
+  const dict = lang === 'en' ? TRANSLATIONS.en : {};
+  let text = dict[key] || translate(key, params);
   if (params) {
     Object.keys(params).forEach((k) => {
       text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(params[k]));
