@@ -26,11 +26,20 @@ const formatMessageTime = (value: string): string => {
   return value.replace('T', ' ').slice(0, 16);
 };
 
+const areMessagesEqual = (first: ChatMessage, second: ChatMessage): boolean => (
+  first.id === second.id
+  && first.sender === second.sender
+  && first.content === second.content
+  && first.fileUrl === second.fileUrl
+  && first.adminName === second.adminName
+  && first.createdAt === second.createdAt
+);
+
 export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, onLoginClick }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [viewportMetrics, setViewportMetrics] = useState<{ height: number; offsetTop: number } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -41,6 +50,7 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
   const latestMessageIdRef = useRef(0);
   const historyLoadedRef = useRef(false);
   const pollingRef = useRef(false);
+  const sessionGenerationRef = useRef(0);
   const firstSyncRef = useRef(false);
   const lastReadIdRef = useRef(0);
   const lastReadKey = useMemo(() => `${LAST_READ_PREFIX}${user?.id ?? 'guest'}`, [user?.id]);
@@ -52,11 +62,13 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
 
   const pullMessages = useCallback(async () => {
     if (!user || pollingRef.current || document.visibilityState === 'hidden') return;
+    const requestGeneration = sessionGenerationRef.current;
     pollingRef.current = true;
     if (!historyLoadedRef.current) setIsLoading(true);
     setError(null);
     try {
       const incoming = await fetchChatMessages(historyLoadedRef.current ? latestMessageIdRef.current : 0);
+      if (requestGeneration !== sessionGenerationRef.current) return;
       setMessages((current) => {
         const merged = new Map(current.map((message) => [message.id, message]));
         incoming.forEach((message) => merged.set(message.id, message));
@@ -70,18 +82,26 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
         }
         firstSyncRef.current = true;
         updateUnreadCount(next);
-        return next;
+        const messagesChanged = next.length !== current.length
+          || next.some((message, index) => !areMessagesEqual(message, current[index]));
+        return messagesChanged ? next : current;
       });
       historyLoadedRef.current = true;
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Unable to load support messages.');
+      if (requestGeneration === sessionGenerationRef.current) {
+        setError(requestError instanceof Error ? requestError.message : 'Unable to load support messages.');
+      }
     } finally {
-      pollingRef.current = false;
-      setIsLoading(false);
+      if (requestGeneration === sessionGenerationRef.current) {
+        pollingRef.current = false;
+        setIsLoading(false);
+      }
     }
   }, [lastReadKey, updateUnreadCount, user]);
 
   useEffect(() => {
+    sessionGenerationRef.current += 1;
+    pollingRef.current = false;
     lastReadIdRef.current = readStoredMessageId(lastReadKey);
     latestMessageIdRef.current = 0;
     historyLoadedRef.current = false;
@@ -127,11 +147,14 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
 
   useEffect(() => {
     if (!isMobile || !isExpanded) {
-      setViewportHeight(null);
+      setViewportMetrics(null);
       return;
     }
     const visualViewport = window.visualViewport;
-    const updateViewport = () => setViewportHeight(visualViewport?.height || window.innerHeight);
+    const updateViewport = () => setViewportMetrics({
+      height: visualViewport?.height || window.innerHeight,
+      offsetTop: visualViewport?.offsetTop || 0,
+    });
     updateViewport();
     visualViewport?.addEventListener('resize', updateViewport);
     visualViewport?.addEventListener('scroll', updateViewport);
@@ -195,7 +218,10 @@ export const ChatWidget: FC<ChatWidgetProps> = ({ user, isSuppressed = false, on
 
   if (isSuppressed) return null;
 
-  const panelStyle = viewportHeight ? ({ '--chat-viewport-height': `${viewportHeight}px` } as CSSProperties) : undefined;
+  const panelStyle = viewportMetrics ? ({
+    '--chat-viewport-height': `${viewportMetrics.height}px`,
+    '--chat-viewport-top': `${viewportMetrics.offsetTop}px`,
+  } as CSSProperties) : undefined;
 
   return (
     <div className={`chat-widget ${isExpanded ? 'chat-widget--expanded' : ''}`}>

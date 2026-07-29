@@ -52,6 +52,21 @@ select:focus-visible {
   overflow: hidden;
 }
 
+.mobile-user-summary {
+  display: -webkit-box;
+  width: 72px;
+  max-height: 32px;
+  overflow: hidden;
+  color: #292929;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  text-align: right;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 [data-reveal] {
   opacity: 0;
   transform: translateY(18px);
@@ -2295,7 +2310,10 @@ select:focus-visible {
   }
 
   .chat-widget__panel {
-    inset: 0;
+    top: var(--chat-viewport-top, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
     width: 100%;
     height: var(--chat-viewport-height, 100dvh);
     min-height: 0;
