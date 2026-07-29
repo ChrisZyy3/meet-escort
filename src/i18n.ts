@@ -2,12 +2,18 @@ import { useEffect, useState } from 'react';
 
 export type Language = 'en' | 'de';
 
+export const supportedLanguages: ReadonlyArray<{ value: Language; labelKey: string }> = [
+  { value: 'en', labelKey: 'language.english' },
+  { value: 'de', labelKey: 'language.german' },
+];
+
 const LANGUAGE_STORAGE_KEY = 'meet_escort_language';
 
 const translations: Record<Language, Record<string, string>> = {
   en: {
     'language.english': 'English',
     'language.german': 'German',
+    'language.choose': 'Choose language',
     'language.switchTo': 'Switch language',
     'common.close': 'Close',
     'common.back': 'Back',
@@ -23,6 +29,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.login': 'Login',
     'nav.logout': 'Logout',
     'nav.openMenu': 'Open main menu',
+    'nav.closeMenu': 'Close main menu',
     'hero.meet': 'Meet an escort',
     'hero.title': 'The Future Escort Directory',
     'hero.subtitle': 'Verified reviews, exclusive videos, and more',
@@ -299,6 +306,7 @@ const translations: Record<Language, Record<string, string>> = {
   de: {
     'language.english': 'Englisch',
     'language.german': 'Deutsch',
+    'language.choose': 'Sprache auswählen',
     'language.switchTo': 'Sprache wechseln',
     'common.close': 'Schließen',
     'common.back': 'Zurück',
@@ -314,6 +322,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.login': 'Anmelden',
     'nav.logout': 'Abmelden',
     'nav.openMenu': 'Hauptmenü öffnen',
+    'nav.closeMenu': 'Hauptmenü schließen',
     'hero.meet': 'Escort treffen',
     'hero.title': 'Das Escort-Verzeichnis der Zukunft',
     'hero.subtitle': 'Verifizierte Bewertungen, exklusive Videos und mehr',
@@ -592,8 +601,13 @@ const translations: Record<Language, Record<string, string>> = {
 const getInitialLanguage = (): Language => {
   if (typeof window === 'undefined') return 'en';
   const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  if (saved === 'de' || saved === 'en') return saved;
-  return window.navigator.language.toLowerCase().startsWith('de') ? 'de' : 'en';
+  if (supportedLanguages.some((option) => option.value === saved)) {
+    return saved as Language;
+  }
+
+  const browserLanguage = window.navigator.language.toLowerCase();
+  const matchedLanguage = supportedLanguages.find((option) => browserLanguage.startsWith(option.value));
+  return matchedLanguage?.value ?? supportedLanguages[0].value;
 };
 
 let currentLanguage = getInitialLanguage();
