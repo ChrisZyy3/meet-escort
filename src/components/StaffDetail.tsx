@@ -574,7 +574,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <p className="profile-detail-content__bio text-sm md:text-base leading-relaxed whitespace-pre-line">
                 {loading
                   ? t('detail.loading')
-                  : (profile.details || profile.description || profile.preferences || t('detail.noDescription'))}
+                  : (profile.bio || profile.description || profile.details || profile.preferences || t('detail.noDescription'))}
                 </p>
               </div>
 
@@ -582,7 +582,7 @@ export const StaffDetail: FC<StaffDetailProps> = ({
                 <ProfileItem label={t('detail.city')} value={cityLabel} />
                 {countryLabel ? <ProfileItem label={t('detail.country')} value={countryLabel} /> : <ProfileItem label={t('detail.country')} value={t('detail.notProvided')} />}
                 <ProfileItem label={t('detail.availability')} value={profile.isActive ? t('detail.onlineNow') : t('common.offline')} />
-                <ProfileItem label={t('detail.services')} value={t('detail.notProvided')} />
+                <ProfileItem label={t('detail.services')} value={profile.serviceItems || t('detail.notProvided')} />
                 {profile.createdAt && <ProfileItem label={t('detail.memberSince')} value={new Date(profile.createdAt).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US')} />}
                 {profile.preferences ? <ProfileItem label={t('detail.preferences')} value={profile.preferences} /> : <ProfileItem label={t('detail.responseTime')} value={t('detail.notProvided')} />}
                 {profile.size ? <ProfileItem label={t('detail.measurements')} value={profile.size} /> : null}

@@ -1249,9 +1249,15 @@ select:focus-visible {
 }
 
 @media (max-width: 760px) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
   .site-container,
   .hero-directory__content {
-    width: min(100% - 28px, 1180px);
+    width: min(calc(100% - 28px), 1180px);
   }
 
   .hello-bar {

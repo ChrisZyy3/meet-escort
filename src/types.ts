@@ -26,6 +26,8 @@ export interface Staff {
   /** Parsed language list from the API languages field. */
   languages?: string[];
   preferences?: string;
+  serviceItems?: string;
+  bio?: string;
   createdAt?: string;
   // Optional fields supported by extended API responses.
   description?: string;
@@ -51,6 +53,8 @@ export interface StaffApiPayload {
   bodyType?: string;
   languages?: string | string[];
   preferences?: string;
+  serviceItems?: string;
+  bio?: string;
   /** List endpoint may return string; detail returns string[]. */
   photoUrls?: string | string[] | null;
   /** Legacy / alternate field some environments may still send. */

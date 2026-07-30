@@ -124,11 +124,14 @@ export function normalizeStaff(raw: StaffApiPayload): Staff {
   const size = raw.size?.trim() || undefined;
   const bodyType = raw.bodyType?.trim() || undefined;
   const preferences = raw.preferences?.trim() || undefined;
+  const serviceItems = raw.serviceItems?.trim() || undefined;
+  const bio = raw.bio?.trim() || undefined;
 
   // Keep profile copy sourced from the API. Location is rendered separately by the UI.
   const description =
     raw.description?.trim() ||
-    raw.details?.trim();
+    raw.details?.trim() ||
+    bio;
 
   return {
     id: raw.id,
@@ -147,6 +150,8 @@ export function normalizeStaff(raw: StaffApiPayload): Staff {
     bodyType,
     languages: languages.length ? languages : undefined,
     preferences,
+    serviceItems,
+    bio,
     createdAt: raw.createdAt,
     description,
     details: raw.details,
